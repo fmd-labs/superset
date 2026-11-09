@@ -24,6 +24,7 @@ import { InputNumber } from '@superset-ui/core/components';
 import { ControlHeader } from '../../components/ControlHeader';
 import {
   MAX_TIME_GRAIN_PERIODS,
+  parseTimeGrainDuration,
   timeGrainSortKey,
 } from '../../utils/timeGrainSwitch';
 
@@ -110,19 +111,32 @@ export default function TimeGrainPeriodsControl({
             >
               {nameOf(grain)}
             </span>
-            <InputNumber
-              aria-label={t('Periods for %s', nameOf(grain))}
-              min={1}
-              max={MAX_TIME_GRAIN_PERIODS}
-              step={1}
-              precision={0}
-              placeholder={t('Chart range')}
-              value={current[grain] ?? null}
-              onChange={periods => setPeriods(grain, periods)}
-              css={css`
-                width: 120px;
-              `}
-            />
+            {parseTimeGrainDuration(grain) ? (
+              <InputNumber
+                aria-label={t('Periods for %s', nameOf(grain))}
+                min={1}
+                max={MAX_TIME_GRAIN_PERIODS}
+                step={1}
+                precision={0}
+                placeholder={t('Chart range')}
+                value={current[grain] ?? null}
+                onChange={periods => setPeriods(grain, periods)}
+                css={css`
+                  width: 120px;
+                `}
+              />
+            ) : (
+              // An anchored or fractional grain has no period window.
+              <span
+                css={(theme: SupersetTheme) => css`
+                  width: 120px;
+                  color: ${theme.colorTextSecondary};
+                  font-size: ${theme.fontSizeSM}px;
+                `}
+              >
+                {t('Chart range')}
+              </span>
+            )}
           </div>
         ))
       )}

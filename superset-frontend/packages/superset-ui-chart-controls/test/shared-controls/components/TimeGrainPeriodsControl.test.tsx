@@ -87,3 +87,13 @@ test('explains itself when only the default grain is offered', () => {
     screen.getByText('Add a viewer time grain other than the chart’s own.'),
   ).toBeInTheDocument();
 });
+
+test('offers no periods for an anchored grain', () => {
+  setup({
+    grains: ['P1D', '1969-12-28T00:00:00Z/P1W'],
+    choices: [...choices, ['1969-12-28T00:00:00Z/P1W', 'Week starting Sunday']],
+  });
+  expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
+  expect(screen.getByText('Week starting Sunday')).toBeInTheDocument();
+  expect(screen.getByText('Chart range')).toBeInTheDocument();
+});

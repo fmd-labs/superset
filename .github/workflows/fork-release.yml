@@ -353,7 +353,7 @@ jobs:
             'http://127.0.0.1:8088/api/v1/dashboard/?q=(page_size:1)' > /dev/null
           curl -fsS --max-time 10 -o /dev/null http://127.0.0.1:8088/login/
           curl -fsS --max-time 10 -o /dev/null http://127.0.0.1:8088/static/assets/manifest.json
-          # The dashboard's time grain switch (D04) is in the built frontend.
+          # The dashboard's time grain switch (D05) is in the built frontend.
           if ! docker exec superset sh -c "grep -lq 'chart_time_grains' /app/superset/static/assets/*.js"; then
             echo "::error::The built frontend lacks the fork's code"
             exit 1

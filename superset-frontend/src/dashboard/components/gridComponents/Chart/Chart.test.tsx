@@ -491,6 +491,16 @@ const timeGrainState = (ownState?: Record<string, unknown>) => ({
       ...chartQueries[queryId],
       form_data: {
         ...chartQueries[queryId].form_data,
+        x_axis: 'ds',
+        adhoc_filters: [
+          {
+            expressionType: 'SIMPLE',
+            subject: 'ds',
+            operator: 'TEMPORAL_RANGE',
+            comparator: 'No filter',
+            clause: 'WHERE',
+          },
+        ],
         time_grain_sqla: 'P1D',
         time_grain_options: ['P1W', 'P1M'],
         time_grain_periods: { P1W: 12 },

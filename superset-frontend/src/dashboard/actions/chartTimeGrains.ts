@@ -19,7 +19,10 @@
 import { omit } from 'lodash';
 import type { Dispatch } from 'redux';
 import type { JsonObject } from '@superset-ui/core';
-import { SELECTED_TIME_GRAIN_KEY } from '@superset-ui/chart-controls';
+import {
+  getTimeGrainOptions,
+  SELECTED_TIME_GRAIN_KEY,
+} from '@superset-ui/chart-controls';
 import { updateDataMask } from 'src/dataMask/actions';
 import { parseChartTimeGrains } from 'src/dashboard/util/charts/timeGrainSwitchUrl';
 import type { RootState } from 'src/dashboard/types';
@@ -45,14 +48,20 @@ export function setChartTimeGrain(chartId: number, grain: string | undefined) {
 }
 
 /**
- * Apply the time grain choices kept in the dashboard URL. Called right after
- * the dashboard is hydrated, before its charts first query, so that a reload
- * or a permalink shows the chosen grains without querying the default first.
+ * Apply the time grain choices kept in the dashboard URL, for the charts of
+ * the hydrated dashboard that offer that grain; anything else in the URL is
+ * ignored. Dispatched in one batch with the dashboard's hydration, so that a
+ * reload or a permalink queries each chart once, with the chosen grain.
  */
 export function restoreChartTimeGrains(search: string) {
   return (dispatch: Dispatch, getState: () => RootState) => {
-    Object.entries(parseChartTimeGrains(search)).forEach(([chartId, grain]) => {
-      setChartTimeGrain(Number(chartId), grain)(dispatch, getState);
+    const { charts } = getState();
+    Object.entries(parseChartTimeGrains(search)).forEach(([id, grain]) => {
+      const chartId = Number(id);
+      const formData = charts[chartId]?.form_data as JsonObject | undefined;
+      if (getTimeGrainOptions(formData).includes(grain)) {
+        setChartTimeGrain(chartId, grain)(dispatch, getState);
+      }
     });
   };
 }

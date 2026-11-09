@@ -53,7 +53,7 @@ export function parseChartTimeGrains(search: string): Record<number, string> {
     }
     const chartId = entry.slice(0, separator);
     const grain = entry.slice(separator + 1);
-    if (CHART_ID.test(chartId) && GRAIN.test(grain) && !grain.includes(',')) {
+    if (CHART_ID.test(chartId) && GRAIN.test(grain)) {
       grains[Number(chartId)] = grain;
     }
   });

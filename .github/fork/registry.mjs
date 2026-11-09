@@ -47,7 +47,9 @@ function fail(message) {
 /** Answer a registry's `WWW-Authenticate: Bearer realm=...,service=...,scope=...` challenge. */
 async function bearerToken(challenge) {
   const params = Object.fromEntries(
-    [...(challenge ?? '').matchAll(/(\w+)="([^"]*)"/g)].map(([, key, value]) => [key, value]),
+    [...(challenge ?? '').matchAll(/(\w+)="([^"]*)"/g)].map(
+      ([, key, value]) => [key, value],
+    ),
   );
   if (!/^Bearer /i.test(challenge ?? '') || !params.realm) {
     fail(`Unsupported authentication challenge: ${challenge}`);
@@ -59,15 +61,19 @@ async function bearerToken(challenge) {
       url.searchParams.set(key, params[key]);
     }
   }
-  const {REGISTRY_USERNAME, REGISTRY_PASSWORD} = process.env;
+  const { REGISTRY_USERNAME, REGISTRY_PASSWORD } = process.env;
   const headers =
     REGISTRY_USERNAME && REGISTRY_PASSWORD
-      ? {Authorization: `Basic ${Buffer.from(`${REGISTRY_USERNAME}:${REGISTRY_PASSWORD}`).toString('base64')}`}
+      ? {
+          Authorization: `Basic ${Buffer.from(`${REGISTRY_USERNAME}:${REGISTRY_PASSWORD}`).toString('base64')}`,
+        }
       : {};
 
-  const response = await fetch(url, {headers});
+  const response = await fetch(url, { headers });
   if (!response.ok) {
-    fail(`Token request for ${params.scope ?? url} failed: HTTP ${response.status} ${await response.text()}`);
+    fail(
+      `Token request for ${params.scope ?? url} failed: HTTP ${response.status} ${await response.text()}`,
+    );
   }
   const body = await response.json();
   return body.token ?? body.access_token;
@@ -81,10 +87,12 @@ if (command !== 'digest' || !match) {
 const [, registry, name, tag] = match;
 const url = `https://${registry}/v2/${name}/manifests/${tag}`;
 
-let response = await fetch(url, {headers: {Accept: MANIFEST_TYPES}});
+let response = await fetch(url, { headers: { Accept: MANIFEST_TYPES } });
 if (response.status === 401) {
   const token = await bearerToken(response.headers.get('www-authenticate'));
-  response = await fetch(url, {headers: {Accept: MANIFEST_TYPES, Authorization: `Bearer ${token}`}});
+  response = await fetch(url, {
+    headers: { Accept: MANIFEST_TYPES, Authorization: `Bearer ${token}` },
+  });
 }
 
 if (response.status === 404) {

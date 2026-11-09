@@ -44,9 +44,10 @@ is then always one upstream release plus the divergences below.
   image used (see **Roll back to an upstream image**). The divergence audit (D02) enforces it. What the fork stores
   lives in what upstream already stores as JSON (chart `params`, dashboard `json_metadata`) under keys of its own,
   which upstream ignores.
-- **Generic and reusable.** The fork is a general-purpose Superset: every divergence is useful to any operator, one
-  that changes behavior is configurable and defaults to upstream's, and none names a particular deployment, product
-  or customer, in code, comments, docs, commit messages and pull requests alike.
+- **Generic and reusable.** The fork is a general-purpose Superset: every divergence is useful to any operator, a
+  feature that changes behavior is configurable and defaults to upstream's (fixes of upstream bugs apply as they
+  are), and none names a particular deployment, product or customer, in code, comments, docs, commit messages and
+  pull requests alike.
 - **Upstream behavior by default.** A chart, dashboard or setting that does not use a divergence behaves exactly as
   upstream.
 - **Upstream first where it fits.** Divergences that are useful to every Superset deployment are candidates for an
@@ -96,6 +97,7 @@ It skips HTML comments and fenced code blocks.
   - `.github/fork/`
 - **What:** the `Fork checks` workflow runs on every push and pull request to `fork`. Its **Divergence audit** job
   (`node .github/fork/audit-divergence.mjs`) checks that:
+  - the merge base with the upstream tag named under **Base** is the one recorded there;
   - every file that differs from the upstream tag named under **Base** is listed under a divergence, every listed
     path still differs, and a directory entry only names a directory the fork adds;
   - nothing under `superset/migrations/` differs (see **Policy**);
@@ -224,6 +226,9 @@ It skips HTML comments and fenced code blocks.
   - `superset-frontend/src/dashboard/util/extractUrlParams.ts`
   - `superset-frontend/src/dashboard/util/extractUrlParams.test.ts`
   - `superset-frontend/src/dashboard/containers/DashboardPage.tsx`
+  - `superset-frontend/src/dashboard/components/nativeFilters/FilterBar/index.tsx`
+  - `superset-frontend/src/explore/exploreUtils/index.ts`
+  - `superset-frontend/src/explore/exploreUtils/exploreUtils.test.tsx`
   - `superset-frontend/src/logger/LogUtils.ts`
 - **What:** a chart can offer dashboard viewers a choice of time grains in its header, without anyone editing the
   chart. Upstream applies a time grain to a dashboard only through a filter in the filter bar, for every chart in its
@@ -233,23 +238,31 @@ It skips HTML comments and fenced code blocks.
     a viewer can switch to, from the dataset's own (any the database offers, `TIME_GRAIN_ADDONS` included); empty, the
     default, shows no switch. **Periods per viewer time grain** (`time_grain_periods`) sets how many periods of each of
     them the chart shows, the current one included: 12 for the week shows the last 12 weeks. The chart's own time
-    grain and its time range stay the default.
+    grain and its time range stay the default; a chart without a grain of its own has no default to return to and
+    shows no switch. An anchored grain (a week starting on Sunday) can be offered but has no periods.
   - **Viewing:** the header shows one button per grain (D, W, 2W, M, Q, …, with the grain's name and its span as
-    tooltip), or a dropdown when the chart is narrow, and the dates the chart covers when there is room (in Superset's
-    UI language). A choice
-    re-runs that chart only: it is kept in the chart's own state on the dashboard (`ownState.selectedTimeGrain`), which
-    upstream's dashboard already re-queries a chart for, and choosing the default grain clears it.
+    tooltip), or a dropdown when the buttons would crowd the title, and the dates the chart covers when there is room
+    (in Superset's UI language). A choice re-runs that chart only: it is kept in the chart's own state on the dashboard
+    (`ownState.selectedTimeGrain`), which upstream's dashboard already re-queries a chart for, and choosing the default
+    grain clears it. The chart's renderer gets its own state without the choice, so it keeps showing the current data
+    until the new query returns.
   - **Query:** the chosen grain replaces the chart's grain, a dashboard time grain filter's included, and the grain an
-    adhoc x-axis carries, so the query and the axis formatting agree. When periods are configured for it, the chart's
-    time range becomes those periods, through the end of the current day (`DATETRUNC`/`DATEADD` on the server's today;
-    a range ending "now" would leave today out of a date column; multi-unit grains are aligned to Monday 1970-01-05 for
-    weeks and to 1970-01-01 otherwise, as their SQL is, so `P3M` covers calendar quarters),
-    through the chart's own time range filter: a chart without one keeps its window. A dashboard time range filter
-    that applies to the chart keeps precedence over the periods.
-  - **Sharing:** choices are kept in the dashboard URL (`chart_time_grains=<chart id>:<grain>,…`), applied before the
-    charts first query; a permalink keeps them, as it keeps the dashboard's URL parameters. The parameter is reserved,
-    so it does not reach the charts' `url_params` (which would change their cache keys). Exports from the chart menu
-    use the grain on screen.
+    adhoc x-axis carries, so the query and the axis formatting agree; the chart's resampling, tied to its saved grain,
+    is dropped. When periods are configured for it, the chart's time range becomes those periods, through the end of
+    the current day (sub-day grains: of the current hour, minute or second), as `DATETRUNC`/`DATEADD` on the server's
+    today: a range ending "now" would leave today out of a date column. Quarters use the parser's `quarter` unit; other
+    multi-unit grains are aligned like their SQL (two weeks to Monday 1970-01-05), and that window is recomputed for
+    every query, so a refresh of a dashboard left open does not drift. Weeks are taken to start on Monday, as on
+    PostgreSQL and ClickHouse; an engine whose weeks start on Sunday shows a partial first week. The periods replace
+    the chart's time range filter, and apply only when the chart's TEMPORAL_RANGE filters are all on its x-axis
+    column: otherwise the chart keeps its window and the tooltips name no periods. A dashboard time range filter that
+    applies to the chart keeps precedence over the periods.
+  - **Sharing:** choices are kept in the dashboard URL (`chart_time_grains=<chart id>:<grain>,…`, percent-encoded in
+    the address bar) and applied in one batch with the dashboard's hydration, for the charts on the dashboard that
+    offer that grain, so the charts first query with them; a permalink keeps them, as it keeps the dashboard's URL
+    parameters. The parameter is reserved, so it does not reach the charts' `url_params` (which would change their
+    cache keys), and the native filter bar now reads the URL's other parameters after its key request, so a choice
+    made meanwhile is not dropped. Exports from the chart menu use the grain on screen.
   - The `change_dashboard_chart_time_grain` log event records each choice.
 - **Why:** with a fixed grain per chart, a dashboard needs a daily and a weekly copy of a chart, or a grain filter
   that changes every chart at once.
@@ -344,7 +357,8 @@ To release:
    `gh workflow run fork-release.yml --ref fork -f version=6.1.0-fork.1`. The run is named `Candidate 6.1.0-fork.1`.
    It builds the amd64 and arm64 images once, publishes them only under a candidate tag unique to the run,
    `sha-<first 7 characters of the commit>-run.<run id>` (with the version in the image labels), records the digest
-   it published with the run (artifact `candidate-digest`), and smoke-tests exactly that image on both architectures.
+   it published with the run (artifact `candidate-digest`, kept for the repository's default 90 days, which is how long
+   a candidate can still be promoted), and smoke-tests exactly that image on both architectures.
    The run summary lists the candidate by tag and digest, and the full commit. A candidate tag is written once:
    re-running a run keeps the candidate it published and smoke-tests that image again, and building again takes a new
    run.

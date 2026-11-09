@@ -43,7 +43,9 @@ export interface TimeGrainSwitchProps {
   width: number;
 }
 
-const BUTTON_WIDTH = 30;
+// Approximate width of a small button: padding plus a character width.
+const BUTTON_PADDING = 16;
+const CHARACTER_WIDTH = 7;
 // Room the chart title keeps before the switch takes a more compact form.
 const TITLE_ROOM = 180;
 const RANGE_LABEL_WIDTH = 120;
@@ -186,7 +188,14 @@ export default function TimeGrainSwitch({
     return parts.join(' · ');
   };
 
-  const segmentedWidth = options.length * BUTTON_WIDTH;
+  // A grain without a compact label (an anchored week) shows its name.
+  const labelOf = (grain: string) =>
+    parseTimeGrainDuration(grain) ? shortTimeGrainLabel(grain) : nameOf(grain);
+  const segmentedWidth = options.reduce(
+    (total, grain) =>
+      total + BUTTON_PADDING + CHARACTER_WIDTH * labelOf(grain).length,
+    0,
+  );
   const compact = width < segmentedWidth + TITLE_ROOM;
   const rangeLabel =
     width >= segmentedWidth + TITLE_ROOM + RANGE_LABEL_WIDTH && range
@@ -224,7 +233,7 @@ export default function TimeGrainSwitch({
           onChange={(value: string) => onChange(value)}
           options={options.map(grain => ({
             value: grain,
-            label: shortTimeGrainLabel(grain),
+            label: labelOf(grain),
             title: describe(grain),
           }))}
           popupMatchSelectWidth={false}
@@ -252,7 +261,7 @@ export default function TimeGrainSwitch({
             {options.map(grain => (
               <Tooltip key={grain} title={describe(grain)} placement="top">
                 <Radio.Button value={grain} aria-label={describe(grain)}>
-                  {shortTimeGrainLabel(grain)}
+                  {labelOf(grain)}
                 </Radio.Button>
               </Tooltip>
             ))}

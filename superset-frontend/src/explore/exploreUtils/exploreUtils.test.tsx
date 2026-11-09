@@ -31,7 +31,11 @@ import {
   getChartMetadataRegistry,
   QueryFormData,
   SupersetClient,
+  TimeGranularity,
 } from '@superset-ui/core';
+
+// A grain added through TIME_GRAIN_ADDONS, which TimeGranularity does not list.
+const TWO_WEEKS = 'P2W' as TimeGranularity;
 
 // eslint-disable-next-line no-restricted-globals -- TODO: Migrate from describe blocks
 describe('exploreUtils', () => {
@@ -309,4 +313,29 @@ describe('exploreUtils', () => {
       expect(postFormSpy).toHaveBeenCalledTimes(1);
     });
   });
+});
+
+test('buildV1ChartDataPayload recomputes the window of a time grain choice when the query is built', async () => {
+  jest.useFakeTimers().setSystemTime(new Date('2026-11-16T12:00:00Z'));
+  try {
+    const payload = await buildV1ChartDataPayload({
+      formData: {
+        datasource: '1__table',
+        viz_type: 'my_custom_viz',
+        time_grain_sqla: TWO_WEEKS,
+        time_grain_switch_window: { grain: 'P2W', periods: 13 },
+        // The window computed a week earlier, when a two-week bucket began.
+        extra_form_data: {
+          time_grain_sqla: TWO_WEEKS,
+          time_range:
+            'DATEADD(DATETRUNC(DATETIME("today"), week), -24, week) : DATEADD(DATETIME("today"), 1, day)',
+        },
+      },
+    });
+    expect(payload.queries[0].time_range).toBe(
+      'DATEADD(DATETRUNC(DATETIME("today"), week), -25, week) : DATEADD(DATETIME("today"), 1, day)',
+    );
+  } finally {
+    jest.useRealTimers();
+  }
 });

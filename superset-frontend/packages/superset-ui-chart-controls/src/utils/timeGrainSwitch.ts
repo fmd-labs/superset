@@ -208,13 +208,21 @@ function bucketOffset({ unit, count }: TimeGrainDuration, now: Date): number {
  * The time range that shows the last `periods` buckets of `grain`, the
  * current (possibly partial) one included, in Superset's time range syntax.
  *
- * It ends after the current day (or hour, minute, second for those grains),
- * not at "now": a date column compares with the date of the range's end, and
- * `day < <today>` would leave today, and so the current bucket, out.
+ * It ends after the current day (for sub-day grains, after the current hour,
+ * minute or second), not at "now": a date column compares with the date of
+ * the range's end, and `day < <today>` would leave today, and so the current
+ * bucket, out.
+ *
+ * Quarters use the time range parser's own `quarter` unit. Other multi-unit
+ * grains (two weeks, 15 minutes) are aligned to a fixed epoch, as their SQL
+ * expressions are: weeks to Monday 1970-01-05, everything else to 1970-01-01.
+ * That alignment depends on `now`, so a query recomputes the window when it
+ * runs (`refreshTimeGrainWindow`).
  *
  * The range is evaluated on the server ("today" and "now" in its time zone);
- * the bucket alignment of multi-unit grains assumes that time zone is UTC.
- * Returns `undefined` for grains it cannot reason about.
+ * the alignment assumes that time zone is UTC, and weeks that start on Monday
+ * (as on PostgreSQL and ClickHouse; engines whose weeks start on Sunday get a
+ * partial first week). Returns `undefined` for grains it cannot reason about.
  */
 export function getTimeGrainWindow(
   grain: string,
@@ -225,9 +233,12 @@ export function getTimeGrainWindow(
   if (!duration || !Number.isInteger(periods) || periods < 1) {
     return undefined;
   }
-  const { unit, count } = duration;
-  const unitsBack = count * (periods - 1) + bucketOffset(duration, now);
-  const isDateUnit = ['day', 'week', 'month', 'year'].includes(unit);
+  const isQuarter = duration.unit === 'month' && duration.count === 3;
+  const unit = isQuarter ? 'quarter' : duration.unit;
+  const count = isQuarter ? 1 : duration.count;
+  const unitsBack =
+    count * (periods - 1) + (isQuarter ? 0 : bucketOffset(duration, now));
+  const isDateUnit = ['day', 'week', 'month', 'quarter', 'year'].includes(unit);
   const base = isDateUnit
     ? `DATETRUNC(DATETIME("today"), ${unit})`
     : `DATETRUNC(DATETIME("now"), ${unit})`;
@@ -239,10 +250,57 @@ export function getTimeGrainWindow(
   return `${since} : ${until}`;
 }
 
+/** Form data key the window of a viewer's grain choice is kept under, for `refreshTimeGrainWindow`. */
+export const TIME_GRAIN_WINDOW_KEY = 'time_grain_switch_window';
+
+/**
+ * Recompute the time range of a viewer's grain choice for a query about to
+ * run. A dashboard refreshes a chart with the form data of its last query, and
+ * the alignment of a two-week bucket depends on the day it runs.
+ */
+export function refreshTimeGrainWindow<T extends JsonObject>(
+  formData: T,
+  now: Date = new Date(),
+): T {
+  const marker = formData?.[TIME_GRAIN_WINDOW_KEY];
+  if (!marker || typeof marker !== 'object' || !formData.extra_form_data) {
+    return formData;
+  }
+  const window = getTimeGrainWindow(marker.grain, marker.periods, now);
+  if (!window || formData.extra_form_data.time_range === window) {
+    return formData;
+  }
+  return {
+    ...formData,
+    extra_form_data: { ...formData.extra_form_data, time_range: window },
+  };
+}
+
+/**
+ * Whether the chart's time range comes from a TEMPORAL_RANGE filter on its
+ * x-axis column, and from no other: a time range override replaces every
+ * TEMPORAL_RANGE filter of a query, and nothing else.
+ */
+export function hasXAxisTimeRangeFilter(formData: JsonObject): boolean {
+  const xAxis = formData.x_axis;
+  if (typeof xAxis !== 'string') {
+    return false;
+  }
+  const temporal = [
+    ...(Array.isArray(formData.adhoc_filters) ? formData.adhoc_filters : []),
+    ...(Array.isArray(formData.adhoc_filters_b)
+      ? formData.adhoc_filters_b
+      : []),
+  ].filter(filter => filter?.operator === 'TEMPORAL_RANGE');
+  return (
+    temporal.length > 0 && temporal.every(filter => filter.subject === xAxis)
+  );
+}
+
 export interface TimeGrainSwitchState {
   /** The grains the switch shows, shortest first; empty when the chart has no switch. */
   options: string[];
-  /** The periods configured for each option that has them. */
+  /** The periods each option shows when chosen, for those whose periods apply. */
   periods: Record<string, number>;
   /** The grain the chart shows without a viewer choice. */
   defaultGrain?: string;
@@ -266,11 +324,13 @@ export interface TimeGrainSwitchResult {
  * output of `getFormDataWithExtraFilters`).
  *
  * - The grain the viewer picked wins over the saved grain and over a
- *   dashboard time grain filter.
+ *   dashboard time grain filter. A chart without a grain of its own has no
+ *   default to go back to, and shows no switch.
  * - If periods are configured for that grain, the chart shows that many
- *   periods, unless a dashboard filter applies a time range to the chart,
- *   which keeps precedence. The window replaces the chart's time range
- *   filter, so a chart without one keeps its own window.
+ *   periods through its time range filter on the x-axis, unless a dashboard
+ *   filter applies a time range to the chart, which keeps precedence. A chart
+ *   without such a filter keeps its own window.
+ * - The chart's resampling, which is tied to its saved grain, is dropped.
  * - Without a valid choice the form data is returned unchanged.
  */
 export function applyTimeGrainSwitch(
@@ -284,7 +344,7 @@ export function applyTimeGrainSwitch(
   const configured = getTimeGrainOptions(formData);
   const windowFromFilter = extraFormData.time_range !== undefined;
 
-  if (configured.length === 0) {
+  if (configured.length === 0 || !defaultGrain) {
     return {
       state: {
         options: [],
@@ -297,16 +357,23 @@ export function applyTimeGrainSwitch(
     };
   }
 
-  const options = [
-    ...new Set([...configured, ...(defaultGrain ? [defaultGrain] : [])]),
-  ].sort((a, b) => timeGrainSortKey(a) - timeGrainSortKey(b));
+  const options = [...new Set([...configured, defaultGrain])].sort(
+    (a, b) => timeGrainSortKey(a) - timeGrainSortKey(b),
+  );
+  const windowApplies = !windowFromFilter && hasXAxisTimeRangeFilter(formData);
   const periods: Record<string, number> = {};
-  options.forEach(option => {
-    const value = getTimeGrainPeriods(formData, option);
-    if (value !== undefined && option !== defaultGrain) {
-      periods[option] = value;
-    }
-  });
+  if (windowApplies) {
+    options.forEach(option => {
+      const value = getTimeGrainPeriods(formData, option);
+      if (
+        value !== undefined &&
+        option !== defaultGrain &&
+        getTimeGrainWindow(option, value, now)
+      ) {
+        periods[option] = value;
+      }
+    });
+  }
   const selectedGrain =
     typeof selected === 'string' &&
     selected !== defaultGrain &&
@@ -329,7 +396,7 @@ export function applyTimeGrainSwitch(
 
   const selectedPeriods = periods[selectedGrain];
   const window =
-    selectedPeriods !== undefined && !windowFromFilter
+    selectedPeriods !== undefined
       ? getTimeGrainWindow(selectedGrain, selectedPeriods, now)
       : undefined;
 
@@ -342,6 +409,14 @@ export function applyTimeGrainSwitch(
       time_grain_sqla: selectedGrain,
       ...(window && { time_range: window }),
     },
+    ...(window && {
+      [TIME_GRAIN_WINDOW_KEY]: {
+        grain: selectedGrain,
+        periods: selectedPeriods,
+      },
+    }),
+    resample_rule: null,
+    resample_method: null,
     // An adhoc x-axis column that carries its own grain would keep it.
     ...(xAxis &&
       typeof xAxis === 'object' &&

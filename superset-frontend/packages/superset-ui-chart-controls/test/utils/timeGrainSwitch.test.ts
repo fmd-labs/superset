@@ -21,7 +21,9 @@ import {
   getTimeGrainOptions,
   getTimeGrainPeriods,
   getTimeGrainWindow,
+  hasXAxisTimeRangeFilter,
   parseTimeGrainDuration,
+  refreshTimeGrainWindow,
   shortTimeGrainLabel,
   timeGrainSortKey,
 } from '../../src';
@@ -31,6 +33,14 @@ const MONDAY_EVEN = new Date('2026-11-09T12:00:00Z');
 // The Monday after: a P2W bucket started a week earlier.
 const MONDAY_ODD = new Date('2026-11-16T12:00:00Z');
 
+const timeRangeFilter = (subject: string, comparator = 'No filter') => ({
+  expressionType: 'SIMPLE',
+  subject,
+  operator: 'TEMPORAL_RANGE',
+  comparator,
+  clause: 'WHERE',
+});
+
 const baseFormData = {
   viz_type: 'echarts_timeseries_bar',
   datasource: '1__table',
@@ -38,8 +48,10 @@ const baseFormData = {
   time_grain_sqla: 'P1D',
   time_grain_options: ['P1M', 'P1W', 'P2W'],
   time_grain_periods: { P1W: 12, P2W: 13, P1M: 12 },
+  adhoc_filters: [timeRangeFilter('day', 'Last month')],
   extra_form_data: {},
 };
+const TOMORROW = 'DATEADD(DATETIME("today"), 1, day)';
 
 test('parseTimeGrainDuration reads single-component ISO 8601 durations', () => {
   expect(parseTimeGrainDuration('P1D')).toEqual({ unit: 'day', count: 1 });
@@ -152,14 +164,54 @@ test('getTimeGrainWindow aligns multi-week buckets to Monday 1970-01-05', () => 
   );
 });
 
-test('getTimeGrainWindow aligns quarters to calendar quarters', () => {
-  // November is the second month of Q4, so the current quarter began a month ago.
-  expect(getTimeGrainWindow('P3M', 8, MONDAY_EVEN)).toBe(
-    'DATEADD(DATETRUNC(DATETIME("today"), month), -22, month) : DATEADD(DATETIME("today"), 1, day)',
+test('getTimeGrainWindow counts quarters with the parser quarter unit, independent of the day', () => {
+  const expected = `DATEADD(DATETRUNC(DATETIME("today"), quarter), -7, quarter) : ${TOMORROW}`;
+  expect(getTimeGrainWindow('P3M', 8, MONDAY_EVEN)).toBe(expected);
+  expect(getTimeGrainWindow('P3M', 8, new Date('2026-10-01T00:00:00Z'))).toBe(
+    expected,
   );
-  expect(getTimeGrainWindow('P3M', 1, new Date('2026-10-01T00:00:00Z'))).toBe(
-    'DATETRUNC(DATETIME("today"), month) : DATEADD(DATETIME("today"), 1, day)',
+  expect(getTimeGrainWindow('P3M', 1, MONDAY_EVEN)).toBe(
+    `DATETRUNC(DATETIME("today"), quarter) : ${TOMORROW}`,
   );
+});
+
+test('refreshTimeGrainWindow recomputes a two-week window for the day a query runs', () => {
+  const { formData } = applyTimeGrainSwitch(baseFormData, 'P2W', MONDAY_EVEN);
+  expect(formData.extra_form_data.time_range).toBe(
+    `DATEADD(DATETRUNC(DATETIME("today"), week), -24, week) : ${TOMORROW}`,
+  );
+  const refreshed = refreshTimeGrainWindow(formData, MONDAY_ODD);
+  expect(refreshed.extra_form_data.time_range).toBe(
+    `DATEADD(DATETRUNC(DATETIME("today"), week), -25, week) : ${TOMORROW}`,
+  );
+  // Unchanged form data comes back as it is.
+  expect(refreshTimeGrainWindow(formData, MONDAY_EVEN)).toBe(formData);
+  expect(refreshTimeGrainWindow(baseFormData, MONDAY_ODD)).toBe(baseFormData);
+});
+
+test('hasXAxisTimeRangeFilter needs TEMPORAL_RANGE filters on the x-axis only', () => {
+  expect(hasXAxisTimeRangeFilter(baseFormData)).toBe(true);
+  expect(hasXAxisTimeRangeFilter({ ...baseFormData, adhoc_filters: [] })).toBe(
+    false,
+  );
+  expect(
+    hasXAxisTimeRangeFilter({
+      ...baseFormData,
+      adhoc_filters: [timeRangeFilter('day'), timeRangeFilter('shipped_at')],
+    }),
+  ).toBe(false);
+  expect(
+    hasXAxisTimeRangeFilter({
+      ...baseFormData,
+      adhoc_filters_b: [timeRangeFilter('shipped_at')],
+    }),
+  ).toBe(false);
+  expect(
+    hasXAxisTimeRangeFilter({
+      ...baseFormData,
+      x_axis: { sqlExpression: 'day', label: 'day', expressionType: 'SQL' },
+    }),
+  ).toBe(false);
 });
 
 test('getTimeGrainWindow gives up on grains and periods it cannot reason about', () => {
@@ -215,6 +267,9 @@ test('applyTimeGrainSwitch applies the chosen grain and its window', () => {
     ...baseFormData,
     time_grain_sqla: 'P1W',
     extra_form_data: { time_grain_sqla: 'P1W', time_range: window },
+    time_grain_switch_window: { grain: 'P1W', periods: 12 },
+    resample_rule: null,
+    resample_method: null,
   });
   expect(state).toMatchObject({
     selectedGrain: 'P1W',
@@ -299,4 +354,58 @@ test('applyTimeGrainSwitch updates the grain an adhoc x-axis carries', () => {
   );
   expect(result.x_axis).toEqual({ ...xAxis, timeGrain: 'P2W' });
   expect(xAxis.timeGrain).toBe('P1D');
+});
+
+test('applyTimeGrainSwitch applies no periods without a time range filter on the x-axis', () => {
+  const formData = {
+    ...baseFormData,
+    adhoc_filters: [
+      { expressionType: 'SQL', clause: 'WHERE', sqlExpression: 'day > 1' },
+    ],
+  };
+  const { state, formData: result } = applyTimeGrainSwitch(
+    formData,
+    'P1W',
+    MONDAY_EVEN,
+  );
+  expect(state.periods).toEqual({});
+  expect(state.window).toBeUndefined();
+  expect(result.extra_form_data).toEqual({ time_grain_sqla: 'P1W' });
+  expect(result.time_grain_switch_window).toBeUndefined();
+});
+
+test('applyTimeGrainSwitch shows no switch on a chart without a grain of its own', () => {
+  const { state, formData } = applyTimeGrainSwitch(
+    { ...baseFormData, time_grain_sqla: null },
+    'P1W',
+    MONDAY_EVEN,
+  );
+  expect(state.options).toEqual([]);
+  expect(formData.time_grain_sqla).toBeNull();
+});
+
+test('applyTimeGrainSwitch gives an anchored grain no periods', () => {
+  const sundayWeek = '1969-12-28T00:00:00Z/P1W';
+  const { state } = applyTimeGrainSwitch(
+    {
+      ...baseFormData,
+      time_grain_options: [sundayWeek],
+      time_grain_periods: { [sundayWeek]: 12 },
+    },
+    sundayWeek,
+    MONDAY_EVEN,
+  );
+  expect(state.options).toEqual(['P1D', sundayWeek]);
+  expect(state.periods).toEqual({});
+  expect(state.window).toBeUndefined();
+});
+
+test('applyTimeGrainSwitch drops resampling tied to the saved grain', () => {
+  const { formData } = applyTimeGrainSwitch(
+    { ...baseFormData, resample_rule: '1D', resample_method: 'zerofill' },
+    'P1M',
+    MONDAY_EVEN,
+  );
+  expect(formData.resample_rule).toBeNull();
+  expect(formData.resample_method).toBeNull();
 });

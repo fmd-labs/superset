@@ -33,7 +33,7 @@ import {
 } from '@superset-ui/chart-controls';
 import { styled } from '@apache-superset/core/theme';
 import { t } from '@apache-superset/core/translation';
-import { debounce } from 'lodash';
+import { debounce, isEqual, omit } from 'lodash';
 import { bindActionCreators } from 'redux';
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -493,6 +493,22 @@ const Chart = (props: ChartProps) => {
   );
   const { formData } = timeGrainSwitch;
 
+  // The chart's own state without the viewer's grain choice, which reaches the
+  // query through the form data: a new object for that choice alone would make
+  // the chart redraw its current data with the new grain before the query
+  // returns.
+  const chartOwnStateRef = useRef<JsonObject>(EMPTY_OBJECT);
+  const chartOwnState = useMemo(() => {
+    const next = omit(
+      (dataMaskOwnState as JsonObject) || EMPTY_OBJECT,
+      SELECTED_TIME_GRAIN_KEY,
+    );
+    if (!isEqual(next, chartOwnStateRef.current)) {
+      chartOwnStateRef.current = next;
+    }
+    return chartOwnStateRef.current;
+  }, [dataMaskOwnState]);
+
   (formData as JsonObject).dashboardId = dashboardInfo.id;
 
   const exportTable = useCallback(
@@ -767,7 +783,7 @@ const Chart = (props: ChartProps) => {
             formData as unknown as import('@superset-ui/core').QueryFormData
           }
           ownState={createOwnStateWithChartState(
-            (dataMask[props.id]?.ownState as JsonObject) || EMPTY_OBJECT,
+            chartOwnState,
             {
               state:
                 getChartStateWithFallback(

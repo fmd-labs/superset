@@ -102,17 +102,7 @@ const publishDataMask = debounce(
     dataMaskSelected: DataMaskStateWithId,
     tabId,
   ) => {
-    const { location } = history;
-    const { search } = location;
-    const previousParams = new URLSearchParams(search);
-    const newParams = new URLSearchParams();
     let dataMaskKey: string | null;
-    previousParams.forEach((value, key) => {
-      if (!EXCLUDED_URL_PARAMS.includes(key)) {
-        newParams.append(key, value);
-      }
-    });
-
     const nativeFiltersCacheKey = getUrlParam(URL_PARAMS.nativeFiltersKey);
     const dataMask = JSON.stringify(dataMaskSelected);
 
@@ -130,6 +120,15 @@ const publishDataMask = debounce(
     } else {
       dataMaskKey = await createFilterKey(dashboardId, dataMask, tabId);
     }
+    // Read the other parameters after the request: they may have changed
+    // meanwhile (a chart's time grain choice, for one).
+    const previousParams = new URLSearchParams(history.location.search);
+    const newParams = new URLSearchParams();
+    previousParams.forEach((value, key) => {
+      if (!EXCLUDED_URL_PARAMS.includes(key)) {
+        newParams.append(key, value);
+      }
+    });
     if (dataMaskKey) {
       newParams.set(URL_PARAMS.nativeFiltersKey.name, dataMaskKey);
     }

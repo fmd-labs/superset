@@ -17,7 +17,7 @@
  * under the License.
  */
 
-// Shared helpers for the fork maintenance scripts in scripts/fork/ (see FORK.md).
+// Shared helpers for the fork maintenance scripts in .github/fork/ (see FORK.md).
 //
 // These scripts have no dependencies on purpose: they run in CI before any install and must keep
 // working when upstream changes its toolchain.
@@ -54,11 +54,22 @@ function paths(output) {
  * FORK.md: the one place it is recorded.
  */
 export function upstreamTag(path = forkLogPath) {
-  const tag = /^- \*\*Upstream tag:\*\* `([^`]+)`/m.exec(readFileSync(path, 'utf8'))?.[1];
+  const tag = /^- \*\*Upstream tag:\*\* `([^`]+)`/m.exec(
+    readFileSync(path, 'utf8'),
+  )?.[1];
   if (!tag) {
-    throw new Error('FORK.md names no "- **Upstream tag:** `<tag>`" under Base');
+    throw new Error(
+      'FORK.md names no "- **Upstream tag:** `<tag>`" under Base',
+    );
   }
   return tag;
+}
+
+/** The merge base FORK.md records under Base (`- **Merge base:** `<sha>``). */
+export function recordedMergeBase(path = forkLogPath) {
+  return /^- \*\*Merge base:\*\* `([0-9a-f]{40})`/m.exec(
+    readFileSync(path, 'utf8'),
+  )?.[1];
 }
 
 /**
