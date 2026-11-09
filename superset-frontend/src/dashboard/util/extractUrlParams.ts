@@ -17,8 +17,14 @@
  * under the License.
  */
 import { JsonObject } from '@superset-ui/core';
+import { CHART_TIME_GRAINS_PARAM } from './charts/timeGrainSwitchUrl';
 
-const reservedQueryParams = new Set(['standalone', 'edit']);
+// Viewers' time grain choices are no query parameters for the charts' SQL.
+const reservedQueryParams = new Set([
+  'standalone',
+  'edit',
+  CHART_TIME_GRAINS_PARAM,
+]);
 
 export type UrlParamType = 'reserved' | 'regular' | 'all';
 

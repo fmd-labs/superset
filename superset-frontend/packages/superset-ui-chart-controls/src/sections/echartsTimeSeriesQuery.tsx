@@ -41,7 +41,13 @@ const controlsWithoutXAxis: ControlSetRow[] = [
 export const echartsTimeSeriesQuery: ControlPanelSectionConfig = {
   label: t('Query'),
   expanded: true,
-  controlSetRows: [['x_axis'], ['time_grain_sqla'], ...controlsWithoutXAxis],
+  controlSetRows: [
+    ['x_axis'],
+    ['time_grain_sqla'],
+    ['time_grain_options'],
+    ['time_grain_periods'],
+    ...controlsWithoutXAxis,
+  ],
 };
 
 export const echartsTimeSeriesQueryWithXAxisSort: ControlPanelSectionConfig = {
@@ -50,6 +56,8 @@ export const echartsTimeSeriesQueryWithXAxisSort: ControlPanelSectionConfig = {
   controlSetRows: [
     ['x_axis'],
     ['time_grain_sqla'],
+    ['time_grain_options'],
+    ['time_grain_periods'],
     [xAxisForceCategoricalControl],
     [xAxisSortControl],
     [xAxisSortAscControl],

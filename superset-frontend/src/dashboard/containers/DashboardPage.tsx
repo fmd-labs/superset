@@ -21,7 +21,7 @@ import { Global } from '@emotion/react';
 import { useHistory } from 'react-router-dom';
 import { t } from '@apache-superset/core/translation';
 import { useTheme } from '@apache-superset/core/theme';
-import { useDispatch, useSelector } from 'react-redux';
+import { batch, useDispatch, useSelector } from 'react-redux';
 import { createSelector } from '@reduxjs/toolkit';
 import { useToasts } from 'src/components/MessageToasts/withToasts';
 import { Loading } from '@superset-ui/core/components';
@@ -31,6 +31,7 @@ import {
   useDashboardDatasets,
 } from 'src/hooks/apiResources';
 import { hydrateDashboard } from 'src/dashboard/actions/hydrate';
+import { restoreChartTimeGrains } from 'src/dashboard/actions/chartTimeGrains';
 import { setDatasources } from 'src/dashboard/actions/datasources';
 import injectCustomCss from 'src/dashboard/util/injectCustomCss';
 import {
@@ -199,16 +200,21 @@ export const DashboardPage: FC<PageProps> = ({ idOrSlug }: PageProps) => {
         if (!isDashboardHydrated.current) {
           isDashboardHydrated.current = true;
         }
-        dispatch(
-          hydrateDashboard({
-            history,
-            dashboard: dashboard!,
-            charts: charts!,
-            activeTabs: activeTabs ?? null,
-            dataMask,
-            chartStates: chartStates ?? null,
-          } as unknown as Parameters<typeof hydrateDashboard>[0]),
-        );
+        // Viewers' time grain choices kept in the URL are applied in the same
+        // batch, so that the charts first query with them.
+        batch(() => {
+          dispatch(
+            hydrateDashboard({
+              history,
+              dashboard: dashboard!,
+              charts: charts!,
+              activeTabs: activeTabs ?? null,
+              dataMask,
+              chartStates: chartStates ?? null,
+            } as unknown as Parameters<typeof hydrateDashboard>[0]),
+          );
+          dispatch(restoreChartTimeGrains(window.location.search));
+        });
 
         // Scroll to anchor element if specified in permalink state
         if (anchor) {

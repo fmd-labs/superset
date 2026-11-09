@@ -17,8 +17,10 @@
  * under the License.
  */
 import RadioButtonControl from './RadioButtonControl';
+import TimeGrainPeriodsControl from './TimeGrainPeriodsControl';
 
 export * from './RadioButtonControl';
+export * from './TimeGrainPeriodsControl';
 
 /**
  * Shared chart controls. Can be referred via string shortcuts in chart control
@@ -26,4 +28,5 @@ export * from './RadioButtonControl';
  */
 export default {
   RadioButtonControl,
+  TimeGrainPeriodsControl,
 };

@@ -32,6 +32,7 @@ import {
 } from '@superset-ui/core';
 import { availableDomains } from 'src/utils/hostNamesConfig';
 import { safeStringify } from 'src/utils/safeStringify';
+import { refreshTimeGrainWindow } from '@superset-ui/chart-controls';
 import { optionLabel } from 'src/utils/common';
 import { ensureAppRoot } from 'src/utils/pathUtils';
 import { URL_PARAMS } from 'src/constants';
@@ -327,7 +328,8 @@ export const buildV1ChartDataPayload = async ({
     (registryResult ? await registryResult : undefined) ?? defaultBuildQuery;
   return buildQuery(
     {
-      ...formData,
+      // The window of a viewer's time grain choice is recomputed for each query.
+      ...refreshTimeGrainWindow(formData),
       force,
       result_format: resultFormat,
       result_type: resultType,

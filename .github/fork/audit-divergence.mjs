@@ -21,9 +21,9 @@
 // Verify that FORK.md accounts for every difference between this fork and its upstream release.
 //
 // Usage:
-//   node scripts/fork/audit-divergence.mjs                 # committed state (HEAD), as in CI
-//   node scripts/fork/audit-divergence.mjs --working-tree  # include uncommitted and untracked files
-//   node scripts/fork/audit-divergence.mjs --list          # print the differing files and exit
+//   node .github/fork/audit-divergence.mjs                 # committed state (HEAD), as in CI
+//   node .github/fork/audit-divergence.mjs --working-tree  # include uncommitted and untracked files
+//   node .github/fork/audit-divergence.mjs --list          # print the differing files and exit
 //
 // Set FORK_AUDIT_UPSTREAM_REF (for example `6.1.0`, after `git fetch upstream tag 6.1.0`) to compare
 // against a local ref instead of fetching the upstream tag named in FORK.md. With GITHUB_TOKEN and
@@ -38,6 +38,7 @@ import {
   existsAt,
   git,
   parseForkLog,
+  recordedMergeBase,
   repoRoot,
   resolveUpstreamRef,
 } from './lib.mjs';
@@ -61,6 +62,15 @@ if (args.has('--list')) {
 const { divergences, workflows, problems } = parseForkLog();
 const failures = [...problems];
 
+// 0. The merge base is the one FORK.md records under Base, so the audit compares against the release
+//    the fork says it is based on.
+const recordedBase = recordedMergeBase();
+if (recordedBase !== base) {
+  failures.push(
+    `merge base ${base} differs from the one recorded under Base in FORK.md (${recordedBase ?? 'none'})`,
+  );
+}
+
 const entries = divergences.flatMap(divergence =>
   divergence.entries.map(entry => ({ divergence, entry })),
 );
@@ -70,7 +80,9 @@ const covers = (entry, file) =>
 // 1. Every differing file is listed under a divergence.
 for (const file of files) {
   if (!entries.some(({ entry }) => covers(entry, file))) {
-    failures.push(`${file}: differs from upstream but is not listed in FORK.md`);
+    failures.push(
+      `${file}: differs from upstream but is not listed in FORK.md`,
+    );
   }
 }
 

@@ -977,3 +977,37 @@ def test_owners_data_includes_email(mocker: MockerFixture) -> None:
         "id": 1,
         "email": "john@example.com",
     }
+
+
+def test_time_grain_sqla_gives_iso_durations() -> None:
+    """
+    Test that time grains are given by their ISO 8601 duration, also for an engine
+    that keys them by `TimeGrain` member, so that the dashboard datasets API (a
+    marshmallow `Str` field) writes "P1D" rather than "TimeGrain.DAY".
+    """
+    from superset.dashboards.schemas import DashboardDatasetSchema
+
+    database = Database(
+        database_name="my_db",
+        sqlalchemy_uri="postgresql://user:pass@localhost/db",
+    )
+    sqla_table = SqlaTable(
+        table_name="my_sqla_table",
+        columns=[],
+        metrics=[],
+        database=database,
+    )
+
+    grains = sqla_table.time_grain_sqla
+    durations = [duration for duration, _ in grains if duration is not None]
+    assert ("P1D", "Day") in grains
+    assert durations
+    assert all(type(duration) is str for duration in durations)
+
+    dumped = DashboardDatasetSchema().dump({"time_grain_sqla": grains})
+    assert ["P1D", "Day"] in dumped["time_grain_sqla"]
+    assert not any(
+        duration.startswith("TimeGrain.")
+        for duration, _ in dumped["time_grain_sqla"]
+        if duration
+    )

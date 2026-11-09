@@ -482,3 +482,47 @@ test('should pass filterState from dataMask to ChartContainer', () => {
     mockFilterState,
   );
 });
+
+const timeGrainState = (ownState?: Record<string, unknown>) => ({
+  ...defaultState,
+  charts: {
+    ...chartQueries,
+    [queryId]: {
+      ...chartQueries[queryId],
+      form_data: {
+        ...chartQueries[queryId].form_data,
+        x_axis: 'ds',
+        adhoc_filters: [
+          {
+            expressionType: 'SIMPLE',
+            subject: 'ds',
+            operator: 'TEMPORAL_RANGE',
+            comparator: 'No filter',
+            clause: 'WHERE',
+          },
+        ],
+        time_grain_sqla: 'P1D',
+        time_grain_options: ['P1W', 'P1M'],
+        time_grain_periods: { P1W: 12 },
+      },
+    },
+  },
+  ...(ownState && { dataMask: { [queryId]: { id: queryId, ownState } } }),
+});
+
+test('applies a viewer time grain choice to the chart query', () => {
+  setup({}, timeGrainState({ selectedTimeGrain: 'P1W' }));
+  const formData = capturedChartContainerProps.formData as Record<string, any>;
+  expect(formData.time_grain_sqla).toBe('P1W');
+  expect(formData.extra_form_data.time_grain_sqla).toBe('P1W');
+  expect(formData.extra_form_data.time_range).toBe(
+    'DATEADD(DATETRUNC(DATETIME("today"), week), -11, week) : DATEADD(DATETIME("today"), 1, day)',
+  );
+});
+
+test('keeps the saved time grain without a viewer choice', () => {
+  setup({}, timeGrainState());
+  const formData = capturedChartContainerProps.formData as Record<string, any>;
+  expect(formData.time_grain_sqla).toBe('P1D');
+  expect(formData.extra_form_data?.time_range).toBeUndefined();
+});

@@ -27,9 +27,13 @@ import {
   RefObject,
 } from 'react';
 import type { ChartCustomization, JsonObject } from '@superset-ui/core';
+import {
+  applyTimeGrainSwitch,
+  SELECTED_TIME_GRAIN_KEY,
+} from '@superset-ui/chart-controls';
 import { styled } from '@apache-superset/core/theme';
 import { t } from '@apache-superset/core/translation';
-import { debounce } from 'lodash';
+import { debounce, isEqual, omit } from 'lodash';
 import { bindActionCreators } from 'redux';
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -434,7 +438,7 @@ const Chart = (props: ChartProps) => {
     ),
   );
 
-  const formData = useMemo(
+  const formDataWithFilters = useMemo(
     () =>
       getFormDataWithExtraFilters({
         chart: { id: chart?.id ?? props.id, form_data: chart?.form_data }, // avoid passing the whole chart object
@@ -475,6 +479,35 @@ const Chart = (props: ChartProps) => {
       ownColorScheme,
     ],
   );
+
+  // A viewer's time grain choice (the chart header's switch) applies on top
+  // of the dashboard's filters.
+  const selectedTimeGrain = dataMaskOwnState?.[SELECTED_TIME_GRAIN_KEY];
+  const timeGrainSwitch = useMemo(
+    () =>
+      applyTimeGrainSwitch(
+        formDataWithFilters as JsonObject,
+        selectedTimeGrain,
+      ),
+    [formDataWithFilters, selectedTimeGrain],
+  );
+  const { formData } = timeGrainSwitch;
+
+  // The chart's own state without the viewer's grain choice, which reaches the
+  // query through the form data: a new object for that choice alone would make
+  // the chart redraw its current data with the new grain before the query
+  // returns.
+  const chartOwnStateRef = useRef<JsonObject>(EMPTY_OBJECT);
+  const chartOwnState = useMemo(() => {
+    const next = omit(
+      (dataMaskOwnState as JsonObject) || EMPTY_OBJECT,
+      SELECTED_TIME_GRAIN_KEY,
+    );
+    if (!isEqual(next, chartOwnStateRef.current)) {
+      chartOwnStateRef.current = next;
+    }
+    return chartOwnStateRef.current;
+  }, [dataMaskOwnState]);
 
   (formData as JsonObject).dashboardId = dashboardInfo.id;
 
@@ -698,6 +731,7 @@ const Chart = (props: ChartProps) => {
         height={getHeaderHeight()}
         exportPivotExcel={exportPivotExcel as unknown as (arg0: string) => void}
         chartHolderRef={props.chartHolderRef}
+        timeGrainSwitch={timeGrainSwitch.state}
       />
 
       {/*
@@ -749,7 +783,7 @@ const Chart = (props: ChartProps) => {
             formData as unknown as import('@superset-ui/core').QueryFormData
           }
           ownState={createOwnStateWithChartState(
-            (dataMask[props.id]?.ownState as JsonObject) || EMPTY_OBJECT,
+            chartOwnState,
             {
               state:
                 getChartStateWithFallback(

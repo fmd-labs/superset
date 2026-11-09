@@ -115,6 +115,14 @@ export const getSmartDateFormatter = (timeGrain?: string) => {
         const hour = normalizedDate.getUTCHours();
         const cleanDate = new Date(Date.UTC(year, month, day, hour, 0, 0, 0));
         return baseFormatter(cleanDate);
+      } else if (/^P[1-9]\d*[DWMY]$/.test(timeGrain)) {
+        // Day or longer grains without a branch of their own, such as a
+        // two-week grain from TIME_GRAIN_ADDONS: set to midnight UTC.
+        const year = normalizedDate.getUTCFullYear();
+        const month = normalizedDate.getUTCMonth();
+        const day = normalizedDate.getUTCDate();
+        const cleanDate = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+        return baseFormatter(cleanDate);
       }
 
       // Use the base formatter on the normalized date

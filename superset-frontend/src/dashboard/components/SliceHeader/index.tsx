@@ -45,6 +45,8 @@ import { RootState } from 'src/dashboard/types';
 import { getSliceHeaderTooltip } from 'src/dashboard/util/getSliceHeaderTooltip';
 import { DashboardPageIdContext } from 'src/dashboard/containers/DashboardPage';
 import RowCountLabel from 'src/components/RowCountLabel';
+import type { TimeGrainSwitchState } from '@superset-ui/chart-controls';
+import TimeGrainSwitch from './TimeGrainSwitch';
 import { Link } from 'react-router-dom';
 
 const extensionsRegistry = getExtensionsRegistry();
@@ -63,6 +65,8 @@ type SliceHeaderProps = SliceHeaderControlsProps & {
   queriedDttm?: string | null;
   exportPivotExcel?: (arg0: string) => void;
   chartHolderRef?: RefObject<HTMLDivElement>;
+  /** The chart's viewer time grain switch, if it has one. */
+  timeGrainSwitch?: TimeGrainSwitchState;
 };
 
 const annotationsLoading = t('Annotation layers are still loading.');
@@ -174,6 +178,7 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
       height,
       exportPivotExcel = () => ({}),
       chartHolderRef,
+      timeGrainSwitch,
     },
     ref,
   ) => {
@@ -321,6 +326,14 @@ const SliceHeader = forwardRef<HTMLDivElement, SliceHeaderProps>(
                 >
                   <CrossFilterIcon iconSize="m" />
                 </Tooltip>
+              )}
+              {!uiConfig.hideChartControls && (
+                <TimeGrainSwitch
+                  chartId={slice.slice_id}
+                  datasource={slice.datasource}
+                  state={timeGrainSwitch}
+                  width={width}
+                />
               )}
               {!uiConfig.hideChartControls && (
                 <CustomizationsBadge chartId={slice.slice_id} />
