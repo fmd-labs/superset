@@ -47,6 +47,34 @@ function getInitialIsSmallScreen(enabled: boolean, maxWidth: number): boolean {
 }
 
 /**
+ * Whether the viewport is at most `maxWidth` wide, kept up to date. Inert
+ * (always false, no subscription) when `enabled` is false.
+ */
+function useMaxWidthMatch(enabled: boolean, maxWidth: number): boolean {
+  const [isSmallScreen, setIsSmallScreen] = useState(() =>
+    getInitialIsSmallScreen(enabled, maxWidth),
+  );
+
+  useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+    const mediaQuery = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const update = () => setIsSmallScreen(mediaQuery.matches);
+    update();
+    // Safari < 14 lacks addEventListener on MediaQueryList
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', update);
+      return () => mediaQuery.removeEventListener('change', update);
+    }
+    mediaQuery.addListener(update);
+    return () => mediaQuery.removeListener(update);
+  }, [enabled, maxWidth]);
+
+  return enabled && isSmallScreen;
+}
+
+/**
  * Returns true when MOBILE_CONSUMPTION_MODE is enabled AND the viewport is
  * at or below the theme's `screenMDMax` breakpoint. All mobile-specific
  * behavior (route guarding, consumption-only chrome, drawer navigation)
@@ -83,32 +111,4 @@ export function useMobileTilesPerLine(): 1 | 2 | 3 {
     return 1;
   }
   return small ? 2 : 3;
-}
-
-/**
- * Whether the viewport is at most `maxWidth` wide, kept up to date. Inert
- * (always false, no subscription) when `enabled` is false.
- */
-function useMaxWidthMatch(enabled: boolean, maxWidth: number): boolean {
-  const [isSmallScreen, setIsSmallScreen] = useState(() =>
-    getInitialIsSmallScreen(enabled, maxWidth),
-  );
-
-  useEffect(() => {
-    if (!enabled) {
-      return undefined;
-    }
-    const mediaQuery = window.matchMedia(`(max-width: ${maxWidth}px)`);
-    const update = () => setIsSmallScreen(mediaQuery.matches);
-    update();
-    // Safari < 14 lacks addEventListener on MediaQueryList
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', update);
-      return () => mediaQuery.removeEventListener('change', update);
-    }
-    mediaQuery.addListener(update);
-    return () => mediaQuery.removeListener(update);
-  }, [enabled, maxWidth]);
-
-  return enabled && isSmallScreen;
 }
