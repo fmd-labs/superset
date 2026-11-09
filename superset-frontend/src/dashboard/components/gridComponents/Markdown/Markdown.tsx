@@ -32,6 +32,7 @@ import DeleteComponentButton from 'src/dashboard/components/DeleteComponentButto
 import { Draggable } from 'src/dashboard/components/dnd/DragDroppable';
 import HoverMenu from 'src/dashboard/components/menu/HoverMenu';
 import ResizableContainer from 'src/dashboard/components/resizable/ResizableContainer';
+import { isMobileConsumptionEnabled } from 'src/hooks/useIsMobile';
 import MarkdownModeDropdown from 'src/dashboard/components/menu/MarkdownModeDropdown';
 import WithPopoverMenu from 'src/dashboard/components/menu/WithPopoverMenu';
 import type { LayoutItem } from 'src/dashboard/types';
@@ -133,6 +134,27 @@ const MarkdownStyles = styled.div`
         cursor: move;
       }
     }
+
+    /* Mobile consumption mode stacks blocks full-width, where text wraps
+       differently than in its desktop column: size each block to its text
+       instead of its authored height, which would cut the text off or leave
+       empty space. !important beats re-resizable's inline height. */
+    ${isMobileConsumptionEnabled() &&
+    css`
+      @media (max-width: ${theme.screenMDMax}px) {
+        &.dashboard-markdown:not(.dashboard-markdown--editing) {
+          .resizable-container {
+            height: auto !important;
+            min-height: 0 !important;
+          }
+
+          .dashboard-component-chart-holder {
+            height: auto;
+            overflow: visible;
+          }
+        }
+      }
+    `}
   `}
 `;
 

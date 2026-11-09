@@ -25,6 +25,7 @@ import { useSelector } from 'react-redux';
 import { useDragDropManager } from 'react-dnd';
 import classNames from 'classnames';
 import { debounce } from 'lodash';
+import { isMobileConsumptionEnabled } from 'src/hooks/useIsMobile';
 
 const StyledDiv = styled.div`
   ${({ theme }) => css`
@@ -110,6 +111,20 @@ const StyledDiv = styled.div`
     i.warning {
       color: ${theme.colorWarning};
     }
+
+    /* Mobile consumption mode: show the full chart title without
+       truncation (controls and links are render-gated in SliceHeader) */
+    ${isMobileConsumptionEnabled()
+      ? `@media (max-width: ${theme.screenMDMax}px) {
+      [data-test='slice-header'] .header-title {
+        -webkit-line-clamp: unset;
+        display: block;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+      }
+    }`
+      : ''}
   `}
 `;
 

@@ -98,6 +98,7 @@ import { useHeaderActionsMenu } from './useHeaderActionsDropdownMenu';
 import { useHeaderAutoRefresh } from './useHeaderAutoRefresh';
 import AutoRefreshIndicator from '../AutoRefreshIndicator';
 import { RefreshButton } from '../RefreshButton';
+import { useIsMobile } from 'src/hooks/useIsMobile';
 
 type DashboardPropertiesUpdate = {
   slug?: string;
@@ -222,6 +223,9 @@ const discardChanges = () => {
 
 const Header = (): JSX.Element => {
   const dispatch = useDispatch();
+  // Consumption only on phones: the title, the star and the kebab menu (which
+  // also refreshes the dashboard) fit; status, metadata and editing do not.
+  const isMobile = useIsMobile();
   const [didNotifyMaxUndoHistoryToast, setDidNotifyMaxUndoHistoryToast] =
     useState(false);
   const [emphasizeUndo, setEmphasizeUndo] = useState(false);
@@ -630,7 +634,7 @@ const Header = (): JSX.Element => {
 
   const titlePanelAdditionalItems = useMemo(
     () => [
-      !editMode && (
+      !editMode && !isMobile && (
         <RefreshButton key="refresh-button" onRefresh={forceRefresh} />
       ),
       !editMode && (
@@ -639,7 +643,7 @@ const Header = (): JSX.Element => {
           onTogglePause={handlePauseToggle}
         />
       ),
-      !editMode && (
+      !editMode && !isMobile && (
         <PublishedStatus
           key="published-status"
           dashboardId={dashboardInfo.id}
@@ -649,12 +653,13 @@ const Header = (): JSX.Element => {
           userCanSave={userCanSaveAs}
         />
       ),
-      !editMode && !isEmbedded && metadataBar,
+      !editMode && !isEmbedded && !isMobile && metadataBar,
     ],
     [
       boundActionCreators.savePublished,
       dashboardInfo.id,
       editMode,
+      isMobile,
       metadataBar,
       isEmbedded,
       isPublished,
@@ -749,7 +754,7 @@ const Header = (): JSX.Element => {
         ) : (
           <div css={actionButtonsStyle}>
             {NavExtension && <NavExtension />}
-            {userCanEdit && (
+            {userCanEdit && !isMobile && (
               <Button
                 buttonStyle="secondary"
                 onClick={handleEnterEditMode}
@@ -776,6 +781,7 @@ const Header = (): JSX.Element => {
       handleCtrlZ,
       handleEnterEditMode,
       hasUnsavedChanges,
+      isMobile,
       overwriteDashboard,
       redoLength,
       undoLength,

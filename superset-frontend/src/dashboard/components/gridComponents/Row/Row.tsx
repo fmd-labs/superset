@@ -37,6 +37,7 @@ import {
   Droppable,
 } from 'src/dashboard/components/dnd/DragDroppable';
 import DragHandle from 'src/dashboard/components/dnd/DragHandle';
+import { isMobileConsumptionEnabled } from 'src/hooks/useIsMobile';
 import DashboardComponent from 'src/dashboard/containers/DashboardComponent';
 import DeleteComponentButton from 'src/dashboard/components/DeleteComponentButton';
 import HoverMenu from 'src/dashboard/components/menu/HoverMenu';
@@ -44,7 +45,10 @@ import IconButton from 'src/dashboard/components/IconButton';
 import BackgroundStyleDropdown from 'src/dashboard/components/menu/BackgroundStyleDropdown';
 import WithPopoverMenu from 'src/dashboard/components/menu/WithPopoverMenu';
 import backgroundStyleOptions from 'src/dashboard/util/backgroundStyleOptions';
-import { BACKGROUND_TRANSPARENT } from 'src/dashboard/util/constants';
+import {
+  BACKGROUND_TRANSPARENT,
+  MOBILE_HALF_WIDTH_CLASS,
+} from 'src/dashboard/util/constants';
 import { isEmbedded } from 'src/dashboard/util/isEmbedded';
 import { EMPTY_CONTAINER_Z_INDEX } from 'src/dashboard/constants';
 import { isCurrentUserBot } from 'src/utils/isBot';
@@ -120,6 +124,27 @@ const GridRow = styled.div<{ editMode: boolean }>`
     &.grid-row--empty {
       min-height: ${theme.sizeUnit * 25}px;
     }
+
+    ${isMobileConsumptionEnabled() &&
+    css`
+      @media (max-width: ${theme.screenMDMax}px) {
+        /* Children stack full-width, except narrow charts (KPI tiles),
+             which pair up two per line. The gap is the gutter GridContent
+             puts between rows and Column between its children, so spacing
+             stays uniform across the whole stacked layout. */
+        flex-wrap: wrap;
+        gap: ${theme.sizeUnit * 4}px;
+
+        & > :not(.hover-menu) {
+          width: 100% !important;
+          margin-right: 0 !important;
+        }
+
+        & > :has(.${MOBILE_HALF_WIDTH_CLASS}) {
+          width: calc(50% - ${theme.sizeUnit * 2}px) !important;
+        }
+      }
+    `}
   `}
 `;
 

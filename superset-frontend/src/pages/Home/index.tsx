@@ -72,7 +72,17 @@ export interface ActivityData {
 
 interface LoadingProps {
   cover?: boolean;
+  /** How many buttons the loaded section's tab row has (Recents has none). */
+  menuButtons?: number;
 }
+
+// The loaded sections' tab rows have three tabs (Favorite / Mine / All, or
+// Viewed / Edited / Created); placeholders keep the row at the same size.
+const LOADING_TABS = ['1', '2', '3'].map(key => ({ name: key, label: key }));
+const LOADING_BUTTONS = [0, 1].map(() => ({
+  name: '',
+  buttonStyle: 'link' as const,
+}));
 
 const DEFAULT_TAB_ARR = ['dashboards', 'charts'];
 
@@ -108,8 +118,6 @@ const WelcomeContainer = styled.div`
   }
 
   .loading-cards {
-    margin-top: ${({ theme }) => theme.sizeUnit * 8}px;
-
     .ant-card-cover > div {
       height: 168px;
     }
@@ -133,17 +141,29 @@ const WelcomeNav = styled.div`
 
 const bootstrapData = getBootstrapData();
 
-export const LoadingCards = ({ cover }: LoadingProps) => (
-  <CardContainer showThumbnails={cover} className="loading-cards">
-    {Array.from({ length: loadingCardCount }, (_, index) => (
-      <ListViewCard
-        key={index}
-        cover={cover ? false : <></>}
-        description=""
-        loading
-      />
-    ))}
-  </CardContainer>
+/**
+ * What a home page section shows while it loads: its tab row and cards as
+ * placeholders of the loaded ones' size, so nothing moves once they load.
+ */
+export const LoadingCards = ({ cover, menuButtons = 2 }: LoadingProps) => (
+  <>
+    <SubMenu
+      loading
+      backgroundColor="transparent"
+      tabs={LOADING_TABS}
+      buttons={LOADING_BUTTONS.slice(0, menuButtons)}
+    />
+    <CardContainer showThumbnails={cover} className="loading-cards">
+      {Array.from({ length: loadingCardCount }, (_, index) => (
+        <ListViewCard
+          key={index}
+          cover={cover ? false : <></>}
+          description=""
+          loading
+        />
+      ))}
+    </CardContainer>
+  </>
 );
 
 function Welcome({ user, addDangerToast }: WelcomeProps) {
@@ -377,7 +397,7 @@ function Welcome({ user, addDangerToast }: WelcomeProps) {
                         isFetchingActivityData={isFetchingActivityData}
                       />
                     ) : (
-                      <LoadingCards />
+                      <LoadingCards menuButtons={0} />
                     ),
                 },
                 {

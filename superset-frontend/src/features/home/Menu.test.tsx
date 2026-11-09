@@ -24,6 +24,10 @@ import { getExtensionsRegistry } from '@superset-ui/core';
 import * as CoreTheme from '@apache-superset/core/theme';
 import { Menu } from './Menu';
 import * as getBootstrapData from 'src/utils/getBootstrapData';
+import {
+  enableMobileConsumptionFlag,
+  mockMobileMatchMedia,
+} from 'spec/helpers/mobileTestUtils';
 
 jest.mock('@apache-superset/core/theme', () => ({
   ...jest.requireActual('@apache-superset/core/theme'),
@@ -795,4 +799,24 @@ test('brand link falls back to brand.path when theme brandLogoUrl is absent', as
   });
   // ensureAppRoot must have been applied: /welcome/ → /superset/welcome/
   expect(brandLink).toHaveAttribute('href', '/superset/welcome/');
+});
+
+test('on a phone, keeps the menu items on one row and folds the overflow', async () => {
+  const restoreMatchMedia = mockMobileMatchMedia();
+  const restoreFlag = enableMobileConsumptionFlag();
+  try {
+    useSelectorMock.mockReturnValue({ roles: user.roles });
+    render(<Menu {...mockedProps} />, {
+      useRedux: true,
+      useQueryParams: true,
+      useRouter: true,
+      useTheme: true,
+    });
+    const nav = await screen.findByTestId('navbar-top');
+    expect(nav).toHaveClass('ant-menu-horizontal');
+    expect(nav).not.toHaveClass('ant-menu-inline');
+  } finally {
+    restoreMatchMedia();
+    restoreFlag();
+  }
 });

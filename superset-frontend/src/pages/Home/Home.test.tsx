@@ -24,7 +24,7 @@ import {
   waitFor,
 } from 'spec/helpers/testing-library';
 import { isFeatureEnabled, getExtensionsRegistry } from '@superset-ui/core';
-import Welcome from 'src/pages/Home';
+import Welcome, { LoadingCards } from 'src/pages/Home';
 import setupCodeOverrides from 'src/setup/setupCodeOverrides';
 
 const chartsEndpoint = 'glob:*/api/v1/chart/?*';
@@ -303,4 +303,33 @@ test('Should not make data fetch calls if `welcome.main.replacement` is defined'
   expect(fetchMock.callHistory.calls(dashboardsEndpoint)).toHaveLength(0);
   expect(fetchMock.callHistory.calls(recentActivityEndpoint)).toHaveLength(0);
   expect(fetchMock.callHistory.calls(savedQueryEndpoint)).toHaveLength(0);
+});
+
+test('loading cards reserve the tab row the loaded section shows', () => {
+  const { container, unmount } = render(<LoadingCards />, {
+    useRedux: true,
+    useRouter: true,
+  });
+  expect(
+    container.querySelectorAll('.ant-menu-item .ant-skeleton'),
+  ).toHaveLength(3);
+  expect(container.querySelectorAll('.ant-skeleton-button')).toHaveLength(
+    // two for the row's buttons, two per card for its actions
+    2 + container.querySelectorAll('[data-test="skeleton-card"]').length * 2,
+  );
+  unmount();
+
+  const recents = render(<LoadingCards menuButtons={0} />, {
+    useRedux: true,
+    useRouter: true,
+  });
+  expect(
+    recents.container.querySelectorAll('.ant-menu-item .ant-skeleton'),
+  ).toHaveLength(3);
+  expect(
+    recents.container.querySelectorAll('.ant-skeleton-button'),
+  ).toHaveLength(
+    recents.container.querySelectorAll('[data-test="skeleton-card"]').length *
+      2,
+  );
 });

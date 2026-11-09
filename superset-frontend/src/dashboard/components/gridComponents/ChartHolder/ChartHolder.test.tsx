@@ -35,12 +35,23 @@ import newComponentFactory from 'src/dashboard/util/newComponentFactory';
 import { initialState } from 'src/SqlLab/fixtures';
 import { SET_DIRECT_PATH } from 'src/dashboard/actions/dashboardState';
 import {
+  enableMobileConsumptionFlag,
+  mockMobileMatchMedia,
+} from 'spec/helpers/mobileTestUtils';
+import {
   CHART_TYPE,
   COLUMN_TYPE,
   ROW_TYPE,
 } from '../../../util/componentTypes';
-import ChartHolder, { CHART_MARGIN } from './ChartHolder';
-import { GRID_BASE_UNIT, GRID_GUTTER_SIZE } from '../../../util/constants';
+import ChartHolder, { CHART_MARGIN, MOBILE_CHROME_HEIGHT } from './ChartHolder';
+import {
+  GRID_BASE_UNIT,
+  GRID_COLUMN_COUNT,
+  GRID_GUTTER_SIZE,
+  GRID_MIN_ROW_UNITS,
+  MOBILE_HALF_WIDTH_CLASS,
+  MOBILE_HALF_WIDTH_MAX_ROW_UNITS,
+} from '../../../util/constants';
 
 const DEFAULT_HEADER_HEIGHT = 22;
 
@@ -395,6 +406,268 @@ describe('ChartHolder', () => {
       window.innerHeight - CHART_MARGIN - DEFAULT_HEADER_HEIGHT;
 
     expect(computedWidth).toEqual(expectedWidth);
+  });
+
+  // eslint-disable-next-line no-restricted-globals -- TODO: Migrate from describe blocks
+  describe('mobile consumption mode height capping', () => {
+    let restoreMatchMedia: () => void;
+    let restoreFlag: () => void;
+    let originalInnerHeight: number;
+
+    beforeEach(() => {
+      restoreMatchMedia = mockMobileMatchMedia();
+      restoreFlag = enableMobileConsumptionFlag();
+      originalInnerHeight = window.innerHeight;
+    });
+
+    afterEach(() => {
+      restoreMatchMedia();
+      restoreFlag();
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    });
+
+    test('caps an authored height taller than the viewport to fit within it', async () => {
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: 812,
+      });
+      const authoredHeight = 200;
+
+      renderWrapper(createMockStore(), {
+        fullSizeChartId: null,
+        editMode: false,
+        component: {
+          ...defaultProps.component,
+          meta: {
+            ...defaultProps.component.meta,
+            height: authoredHeight,
+          },
+        },
+      });
+
+      const container = screen.getByTestId('chart-container');
+      const computedHeight = parseInt(
+        container.getAttribute('height') || '0',
+        10,
+      );
+
+      const maxUnits = Math.floor(
+        (812 - MOBILE_CHROME_HEIGHT) / GRID_BASE_UNIT,
+      );
+      const cappedHeightMultiple = Math.min(authoredHeight, maxUnits);
+      const expectedHeight = Math.floor(
+        cappedHeightMultiple * GRID_BASE_UNIT -
+          CHART_MARGIN -
+          DEFAULT_HEADER_HEIGHT,
+      );
+
+      expect(cappedHeightMultiple).toBeLessThan(authoredHeight);
+      expect(computedHeight).toEqual(expectedHeight);
+    });
+
+    test('floors the capped height at GRID_MIN_ROW_UNITS on very short viewports', async () => {
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: 200,
+      });
+      const authoredHeight = 200;
+
+      renderWrapper(createMockStore(), {
+        fullSizeChartId: null,
+        editMode: false,
+        component: {
+          ...defaultProps.component,
+          meta: {
+            ...defaultProps.component.meta,
+            height: authoredHeight,
+          },
+        },
+      });
+
+      const container = screen.getByTestId('chart-container');
+      const computedHeight = parseInt(
+        container.getAttribute('height') || '0',
+        10,
+      );
+
+      // The rendered chart further clamps to a 20px floor of its own, which
+      // kicks in here since the grid-unit floor alone would compute negative.
+      const expectedHeight = Math.max(
+        Math.floor(
+          GRID_MIN_ROW_UNITS * GRID_BASE_UNIT -
+            CHART_MARGIN -
+            DEFAULT_HEADER_HEIGHT,
+        ),
+        20,
+      );
+
+      expect(computedHeight).toEqual(expectedHeight);
+    });
+
+    test('does not cap the authored height while in edit mode', async () => {
+      Object.defineProperty(window, 'innerHeight', {
+        writable: true,
+        configurable: true,
+        value: 812,
+      });
+      const authoredHeight = 200;
+
+      renderWrapper(createMockStore(), {
+        fullSizeChartId: null,
+        editMode: true,
+        component: {
+          ...defaultProps.component,
+          meta: {
+            ...defaultProps.component.meta,
+            height: authoredHeight,
+          },
+        },
+      });
+
+      const container = screen.getByTestId('chart-container');
+      const computedHeight = parseInt(
+        container.getAttribute('height') || '0',
+        10,
+      );
+      const expectedHeight = Math.floor(
+        authoredHeight * GRID_BASE_UNIT - CHART_MARGIN - DEFAULT_HEADER_HEIGHT,
+      );
+
+      expect(computedHeight).toEqual(expectedHeight);
+    });
+  });
+
+  // eslint-disable-next-line no-restricted-globals -- TODO: Migrate from describe blocks
+  describe('mobile consumption mode KPI tiles', () => {
+    let restoreMatchMedia: () => void;
+    let restoreFlag: () => void;
+
+    const storeWithVizType = (vizType: string) =>
+      createMockStore({
+        sliceEntities: {
+          ...mockState.sliceEntities,
+          slices: {
+            ...mockState.sliceEntities.slices,
+            [chartId]: {
+              ...mockState.sliceEntities.slices[chartId],
+              viz_type: vizType,
+            },
+          },
+        },
+      });
+
+    const renderedWidth = () =>
+      parseInt(
+        screen.getByTestId('chart-container').getAttribute('width') || '0',
+        10,
+      );
+
+    const widthOf = (columns: number) =>
+      Math.floor(
+        columns * defaultProps.columnWidth +
+          (columns - 1) * GRID_GUTTER_SIZE -
+          CHART_MARGIN,
+      );
+
+    beforeEach(() => {
+      restoreMatchMedia = mockMobileMatchMedia();
+      restoreFlag = enableMobileConsumptionFlag();
+    });
+
+    afterEach(() => {
+      restoreMatchMedia();
+      restoreFlag();
+    });
+
+    test('a big number in a row takes half a line and caps its height', () => {
+      renderWrapper(storeWithVizType('big_number_total'), {
+        fullSizeChartId: null,
+        component: {
+          ...defaultProps.component,
+          meta: { ...defaultProps.component.meta, width: 4, height: 50 },
+        },
+      });
+
+      expect(
+        screen.getByTestId('dashboard-component-chart-holder'),
+      ).toHaveClass(MOBILE_HALF_WIDTH_CLASS);
+      expect(renderedWidth()).toEqual(widthOf(GRID_COLUMN_COUNT / 2));
+      expect(
+        parseInt(
+          screen.getByTestId('chart-container').getAttribute('height') || '0',
+          10,
+        ),
+      ).toEqual(
+        Math.floor(
+          MOBILE_HALF_WIDTH_MAX_ROW_UNITS * GRID_BASE_UNIT -
+            CHART_MARGIN -
+            DEFAULT_HEADER_HEIGHT,
+        ),
+      );
+    });
+
+    test('other charts and wide big numbers take a full line', () => {
+      const { unmount } = renderWrapper(storeWithVizType('pie'), {
+        fullSizeChartId: null,
+      });
+      expect(
+        screen.getByTestId('dashboard-component-chart-holder'),
+      ).not.toHaveClass(MOBILE_HALF_WIDTH_CLASS);
+      expect(renderedWidth()).toEqual(widthOf(GRID_COLUMN_COUNT));
+      unmount();
+
+      renderWrapper(storeWithVizType('big_number'), {
+        fullSizeChartId: null,
+        component: {
+          ...defaultProps.component,
+          meta: { ...defaultProps.component.meta, width: 8 },
+        },
+      });
+      expect(
+        screen.getByTestId('dashboard-component-chart-holder'),
+      ).not.toHaveClass(MOBILE_HALF_WIDTH_CLASS);
+      expect(renderedWidth()).toEqual(widthOf(GRID_COLUMN_COUNT));
+    });
+
+    test('big numbers keep their desktop width in edit mode', () => {
+      renderWrapper(storeWithVizType('big_number_total'), {
+        fullSizeChartId: null,
+        editMode: true,
+      });
+      expect(
+        screen.getByTestId('dashboard-component-chart-holder'),
+      ).not.toHaveClass(MOBILE_HALF_WIDTH_CLASS);
+      expect(renderedWidth()).toEqual(
+        widthOf(defaultProps.component.meta.width),
+      );
+    });
+  });
+
+  test('big numbers keep their desktop width on desktop', () => {
+    renderWrapper(
+      createMockStore({
+        sliceEntities: {
+          ...mockState.sliceEntities,
+          slices: {
+            ...mockState.sliceEntities.slices,
+            [chartId]: {
+              ...mockState.sliceEntities.slices[chartId],
+              viz_type: 'big_number_total',
+            },
+          },
+        },
+      }),
+      { fullSizeChartId: null },
+    );
+    expect(
+      screen.getByTestId('dashboard-component-chart-holder'),
+    ).not.toHaveClass(MOBILE_HALF_WIDTH_CLASS);
   });
 
   test('should call deleteComponent when deleted', async () => {
