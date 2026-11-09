@@ -54,7 +54,7 @@ describe('extractUrlParams', () => {
 });
 
 test('keeps time grain choices out of the regular urlParams', () => {
-  const location = window.location;
+  const { location } = window;
   // @ts-expect-error
   delete window.location;
   // @ts-expect-error
