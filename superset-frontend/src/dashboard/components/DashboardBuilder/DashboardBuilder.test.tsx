@@ -43,6 +43,10 @@ import { storeWithState } from 'spec/fixtures/mockStore';
 import mockState from 'spec/fixtures/mockState';
 import { DASHBOARD_ROOT_ID } from 'src/dashboard/util/constants';
 import * as useNativeFiltersModule from './state';
+import {
+  enableMobileConsumptionFlag,
+  mockMobileMatchMedia,
+} from 'spec/helpers/mobileTestUtils';
 
 fetchMock.get('glob:*/csstemplateasyncmodelview/api/read', {});
 fetchMock.put('glob:*/api/v1/dashboard/*', {});
@@ -312,6 +316,7 @@ describe('DashboardBuilder', () => {
         dashboardFiltersOpen: true,
         toggleDashboardFiltersOpen: jest.fn(),
         nativeFiltersEnabled: true,
+        hasFilters: true,
       });
 
     const { getByTestId } = setup();
@@ -338,6 +343,7 @@ describe('DashboardBuilder', () => {
         dashboardFiltersOpen: false,
         toggleDashboardFiltersOpen: jest.fn(),
         nativeFiltersEnabled: true,
+        hasFilters: true,
       });
 
     const { getByTestId } = setup();
@@ -364,6 +370,7 @@ describe('DashboardBuilder', () => {
         dashboardFiltersOpen: true,
         toggleDashboardFiltersOpen: jest.fn(),
         nativeFiltersEnabled: false,
+        hasFilters: true,
       });
 
     const { getByTestId } = setup();
@@ -423,6 +430,7 @@ describe('DashboardBuilder', () => {
       dashboardFiltersOpen: true,
       toggleDashboardFiltersOpen: jest.fn(),
       nativeFiltersEnabled: false,
+      hasFilters: true,
     });
     const { queryByTestId } = setup();
 
@@ -436,10 +444,31 @@ describe('DashboardBuilder', () => {
       dashboardFiltersOpen: true,
       toggleDashboardFiltersOpen: jest.fn(),
       nativeFiltersEnabled: true,
+      hasFilters: true,
     });
     const { queryByTestId } = setup();
 
     expect(queryByTestId('dashboard-filters-panel')).toBeInTheDocument();
+  });
+
+  test('on a phone, shows no filter bar when the dashboard has no filters', () => {
+    jest.spyOn(useNativeFiltersModule, 'useNativeFilters').mockReturnValue({
+      showDashboard: true,
+      missingInitialFilters: [],
+      dashboardFiltersOpen: true,
+      toggleDashboardFiltersOpen: jest.fn(),
+      nativeFiltersEnabled: true,
+      hasFilters: false,
+    });
+    const restoreMatchMedia = mockMobileMatchMedia();
+    const restoreFlag = enableMobileConsumptionFlag();
+    try {
+      const { queryByTestId } = setup();
+      expect(queryByTestId('dashboard-filters-panel')).not.toBeInTheDocument();
+    } finally {
+      restoreMatchMedia();
+      restoreFlag();
+    }
   });
 
   test('should not render the filter bar when in edit mode even if nativeFiltersEnabled is true', () => {
@@ -449,6 +478,7 @@ describe('DashboardBuilder', () => {
       dashboardFiltersOpen: true,
       toggleDashboardFiltersOpen: jest.fn(),
       nativeFiltersEnabled: true,
+      hasFilters: true,
     });
     const { queryByTestId } = setup({
       dashboardState: { ...mockState.dashboardState, editMode: true },

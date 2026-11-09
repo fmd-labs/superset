@@ -65,6 +65,31 @@ export function useIsMobile(): boolean {
   const enabled = isMobileConsumptionEnabled();
   const theme = useTheme();
   const maxWidth = theme?.screenMDMax ?? FALLBACK_MOBILE_MAX_WIDTH;
+  return useMaxWidthMatch(enabled, maxWidth);
+}
+
+/**
+ * Fork: how many KPI tiles share a line in mobile consumption mode. One on
+ * phones in portrait (below the theme's `screenSM`), where two would squeeze
+ * their titles and numbers, two up to `screenSMMax`, three up to the mode's
+ * `screenMDMax`. Only meaningful while `useIsMobile()` is true.
+ */
+export function useMobileTilesPerLine(): 1 | 2 | 3 {
+  const enabled = isMobileConsumptionEnabled();
+  const theme = useTheme();
+  const phone = useMaxWidthMatch(enabled, theme?.screenXSMax ?? 575);
+  const small = useMaxWidthMatch(enabled, theme?.screenSMMax ?? 767);
+  if (phone) {
+    return 1;
+  }
+  return small ? 2 : 3;
+}
+
+/**
+ * Whether the viewport is at most `maxWidth` wide, kept up to date. Inert
+ * (always false, no subscription) when `enabled` is false.
+ */
+function useMaxWidthMatch(enabled: boolean, maxWidth: number): boolean {
   const [isSmallScreen, setIsSmallScreen] = useState(() =>
     getInitialIsSmallScreen(enabled, maxWidth),
   );

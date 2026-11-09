@@ -373,7 +373,8 @@ export function Menu({
               isMobile &&
               css`
                 flex: 1;
-                min-width: 0;
+                /* room for the overflow item (…) at the least */
+                min-width: ${theme.sizeUnit * 12}px;
               `
             }
             items={menu.map(item => {

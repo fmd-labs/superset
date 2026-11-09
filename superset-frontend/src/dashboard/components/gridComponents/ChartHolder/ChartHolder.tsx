@@ -39,12 +39,12 @@ import {
   GRID_GUTTER_SIZE,
   GRID_MIN_COLUMN_COUNT,
   GRID_MIN_ROW_UNITS,
-  MOBILE_HALF_WIDTH_CLASS,
-  MOBILE_HALF_WIDTH_MAX_COLUMNS,
-  MOBILE_HALF_WIDTH_MAX_ROW_UNITS,
-  MOBILE_HALF_WIDTH_VIZ_TYPES,
+  MOBILE_TILE_CLASS,
+  MOBILE_TILE_MAX_COLUMNS,
+  MOBILE_TILE_MAX_ROW_UNITS,
+  MOBILE_TILE_VIZ_TYPES,
 } from 'src/dashboard/util/constants';
-import { useIsMobile } from 'src/hooks/useIsMobile';
+import { useIsMobile, useMobileTilesPerLine } from 'src/hooks/useIsMobile';
 
 export const CHART_MARGIN = 32;
 
@@ -130,8 +130,17 @@ const ChartHolder = ({
     if (!isMobile) {
       return undefined;
     }
-    const updateViewportHeight = () => setViewportHeight(window.innerHeight);
-    updateViewportHeight();
+    // Fork: re-measure only when the width changes (a rotation). A phone's
+    // address bar hides and shows while scrolling, changing the height
+    // alone; following it resized every chart mid-scroll and moved the page.
+    let { innerWidth } = window;
+    setViewportHeight(window.innerHeight);
+    const updateViewportHeight = () => {
+      if (window.innerWidth !== innerWidth) {
+        ({ innerWidth } = window);
+        setViewportHeight(window.innerHeight);
+      }
+    };
     window.addEventListener('resize', updateViewportHeight);
     window.addEventListener('orientationchange', updateViewportHeight);
     return () => {
@@ -197,18 +206,18 @@ const ChartHolder = ({
     };
   }, [outlinedComponentId]);
 
-  // In mobile consumption mode a KPI tile of a row takes half a line, so tiles
-  // pair up instead of each filling the screen (see Row).
+  // In mobile consumption mode a KPI tile of a row shares its line with other
+  // tiles where the screen allows, instead of each filling a line (see Row).
   const vizType = useSelector((state: RootState) =>
     chartId ? state.sliceEntities?.slices?.[chartId]?.viz_type : undefined,
   );
-  const isMobileHalfWidth =
+  const tilesPerLine = useMobileTilesPerLine();
+  const isMobileTile =
     isMobile &&
     !editMode &&
     parentComponent.type === ROW_TYPE &&
-    MOBILE_HALF_WIDTH_VIZ_TYPES.includes(vizType ?? '') &&
-    (component.meta.width ?? GRID_COLUMN_COUNT) <=
-      MOBILE_HALF_WIDTH_MAX_COLUMNS;
+    MOBILE_TILE_VIZ_TYPES.includes(vizType ?? '') &&
+    (component.meta.width ?? GRID_COLUMN_COUNT) <= MOBILE_TILE_MAX_COLUMNS;
 
   const widthMultiple = useMemo(() => {
     // Mobile consumption mode stacks charts vertically at full width, so
@@ -216,7 +225,9 @@ const ChartHolder = ({
     // chart plugin (and to ResizableContainer's inline size) in sync with the
     // stacked layout instead of the desktop grid fraction.
     if (isMobile && !editMode) {
-      return isMobileHalfWidth ? GRID_COLUMN_COUNT / 2 : GRID_COLUMN_COUNT;
+      return isMobileTile
+        ? GRID_COLUMN_COUNT / tilesPerLine
+        : GRID_COLUMN_COUNT;
     }
 
     const columnParentWidth = getComponentById(
@@ -235,7 +246,8 @@ const ChartHolder = ({
     component,
     getComponentById,
     isMobile,
-    isMobileHalfWidth,
+    isMobileTile,
+    tilesPerLine,
     editMode,
     parentComponent.meta.width,
     parentComponent.parents,
@@ -250,19 +262,13 @@ const ChartHolder = ({
   const heightMultiple = useMemo(() => {
     const authoredHeight = component.meta.height ?? GRID_MIN_ROW_UNITS;
     if (isMobile && !editMode) {
-      const maxUnits = isMobileHalfWidth
-        ? MOBILE_HALF_WIDTH_MAX_ROW_UNITS
+      const maxUnits = isMobileTile
+        ? MOBILE_TILE_MAX_ROW_UNITS
         : Math.floor((viewportHeight - MOBILE_CHROME_HEIGHT) / GRID_BASE_UNIT);
       return Math.max(GRID_MIN_ROW_UNITS, Math.min(authoredHeight, maxUnits));
     }
     return authoredHeight;
-  }, [
-    component.meta.height,
-    isMobile,
-    isMobileHalfWidth,
-    editMode,
-    viewportHeight,
-  ]);
+  }, [component.meta.height, isMobile, isMobileTile, editMode, viewportHeight]);
 
   const { chartWidth, chartHeight } = useMemo(() => {
     let width = 0;
@@ -357,7 +363,10 @@ const ChartHolder = ({
             // The following class is added to support custom dashboard styling via the CSS editor
             `dashboard-chart-id-${chartId}`,
             outlinedComponentId ? 'fade-in' : 'fade-out',
-            isMobileHalfWidth && MOBILE_HALF_WIDTH_CLASS,
+            isMobileTile && [
+              MOBILE_TILE_CLASS,
+              `${MOBILE_TILE_CLASS}-${tilesPerLine}`,
+            ],
           )}
         >
           <AntdThemeProvider
@@ -425,6 +434,8 @@ const ChartHolder = ({
       columnWidth,
       heightMultiple,
       widthMultiple,
+      isMobileTile,
+      tilesPerLine,
       availableColumnCount,
       onResizeStart,
       onResize,

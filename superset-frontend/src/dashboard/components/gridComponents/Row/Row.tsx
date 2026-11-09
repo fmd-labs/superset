@@ -47,7 +47,7 @@ import WithPopoverMenu from 'src/dashboard/components/menu/WithPopoverMenu';
 import backgroundStyleOptions from 'src/dashboard/util/backgroundStyleOptions';
 import {
   BACKGROUND_TRANSPARENT,
-  MOBILE_HALF_WIDTH_CLASS,
+  MOBILE_TILE_CLASS,
 } from 'src/dashboard/util/constants';
 import { isEmbedded } from 'src/dashboard/util/isEmbedded';
 import { EMPTY_CONTAINER_Z_INDEX } from 'src/dashboard/constants';
@@ -128,10 +128,10 @@ const GridRow = styled.div<{ editMode: boolean }>`
     ${isMobileConsumptionEnabled() &&
     css`
       @media (max-width: ${theme.screenMDMax}px) {
-        /* Children stack full-width, except narrow charts (KPI tiles),
-             which pair up two per line. The gap is the gutter GridContent
-             puts between rows and Column between its children, so spacing
-             stays uniform across the whole stacked layout. */
+        /* Children stack full-width, except KPI tiles, which share a line
+             two or three at a time (see ChartHolder). The gap is the gutter
+             GridContent puts between rows and Column between its children,
+             so spacing stays uniform across the whole stacked layout. */
         flex-wrap: wrap;
         gap: ${theme.sizeUnit * 4}px;
 
@@ -140,8 +140,12 @@ const GridRow = styled.div<{ editMode: boolean }>`
           margin-right: 0 !important;
         }
 
-        & > :has(.${MOBILE_HALF_WIDTH_CLASS}) {
-          width: calc(50% - ${theme.sizeUnit * 2}px) !important;
+        & > :has(.${MOBILE_TILE_CLASS}-2) {
+          width: calc((100% - ${theme.sizeUnit * 4}px) / 2) !important;
+        }
+
+        & > :has(.${MOBILE_TILE_CLASS}-3) {
+          width: calc((100% - ${theme.sizeUnit * 8}px) / 3) !important;
         }
       }
     `}

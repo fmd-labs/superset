@@ -326,6 +326,11 @@ It skips HTML comments and fenced code blocks.
   - `superset-frontend/src/features/home/Menu.test.tsx`
   - `superset-frontend/src/views/CRUD/utils.tsx`
   - `superset-frontend/src/features/home/SubMenu.tsx`
+  - `superset-frontend/src/features/home/RightMenu.tsx`
+  - `superset-frontend/src/dashboard/components/DashboardBuilder/DashboardBuilder.tsx`
+  - `superset-frontend/src/dashboard/components/DashboardBuilder/DashboardBuilder.test.tsx`
+  - `superset-frontend/src/dashboard/components/DashboardBuilder/state.ts`
+  - `superset-frontend/src/dashboard/components/nativeFilters/FilterBar/Horizontal.tsx`
 - **What:** with the `MOBILE_CONSUMPTION_MODE` feature flag on (off by default, as upstream), dashboards are laid out
   for reading on screens up to the theme's `screenMDMax` (991px): phones, portrait tablets and narrow windows.
   - **From upstream (#37141, unchanged):**
@@ -335,11 +340,18 @@ It skips HTML comments and fenced code blocks.
     - charts are capped to the viewport's height;
     - chart titles wrap, and chart headers drop their menu and the link to Explore;
     - the dashboard header drops the refresh icon (the menu still refreshes), the published badge, the owner and
-      modified metadata and the edit button, keeping the title, the star and the menu.
+      modified metadata and the edit button, keeping the title, the star and the menu;
+    - the dashboard header and filter bar scroll away instead of staying pinned.
   - **The fork's own:**
     - a breakpoint of `screenMDMax` instead of upstream's `screenSMMax` (767px), so portrait tablets get the layout too;
-    - big number charts at most half a row wide on desktop (KPI tiles) take half a line, two to a line, at most 200px
-      tall, instead of a full line each;
+    - big number charts at most half a row wide on desktop (KPI tiles) are at most 200px tall and share a line: one
+      to a line below `screenSM` (576px, where two would squeeze their titles and numbers), two below `screenMD`
+      (768px), three up to the breakpoint;
+    - charts are capped to the height the viewport had at its current width, so a phone's address bar showing and
+      hiding while scrolling does not resize them and move the page (upstream re-measures on every resize);
+    - the filter bar is left out when the dashboard has no filters (an editor saw an empty bar), and its Apply and
+      Clear All buttons move to their own line when the filters need the room;
+    - the navigation's create (+) and theme menus are left out, so the bar fits one row with Settings;
     - markdown blocks size to their text instead of their authored height, which cuts the text off or leaves empty
       space once it wraps at another width;
     - the main navigation stays one row, folding the items that don't fit into the menu's overflow (…), instead of

@@ -49,8 +49,8 @@ import {
   GRID_COLUMN_COUNT,
   GRID_GUTTER_SIZE,
   GRID_MIN_ROW_UNITS,
-  MOBILE_HALF_WIDTH_CLASS,
-  MOBILE_HALF_WIDTH_MAX_ROW_UNITS,
+  MOBILE_TILE_CLASS,
+  MOBILE_TILE_MAX_ROW_UNITS,
 } from '../../../util/constants';
 
 const DEFAULT_HEADER_HEIGHT = 22;
@@ -510,6 +510,57 @@ describe('ChartHolder', () => {
       expect(computedHeight).toEqual(expectedHeight);
     });
 
+    test('ignores a height-only resize (an address bar) but follows a rotation', async () => {
+      const setViewport = (width: number, height: number) => {
+        Object.defineProperty(window, 'innerWidth', {
+          writable: true,
+          configurable: true,
+          value: width,
+        });
+        Object.defineProperty(window, 'innerHeight', {
+          writable: true,
+          configurable: true,
+          value: height,
+        });
+      };
+      const renderedHeight = () =>
+        parseInt(
+          screen.getByTestId('chart-container').getAttribute('height') || '0',
+          10,
+        );
+      const cappedHeight = (viewportHeight: number) =>
+        Math.floor(
+          Math.floor((viewportHeight - MOBILE_CHROME_HEIGHT) / GRID_BASE_UNIT) *
+            GRID_BASE_UNIT -
+            CHART_MARGIN -
+            DEFAULT_HEADER_HEIGHT,
+        );
+      const originalInnerWidth = window.innerWidth;
+      setViewport(390, 664);
+
+      renderWrapper(createMockStore(), {
+        fullSizeChartId: null,
+        editMode: false,
+        component: {
+          ...defaultProps.component,
+          meta: { ...defaultProps.component.meta, height: 200 },
+        },
+      });
+      expect(renderedHeight()).toEqual(cappedHeight(664));
+
+      setViewport(390, 750);
+      fireEvent(window, new Event('resize'));
+      expect(renderedHeight()).toEqual(cappedHeight(664));
+
+      // A rotation changes the width too: the cap follows the new height.
+      setViewport(844, 390);
+      fireEvent(window, new Event('resize'));
+      await waitFor(() =>
+        expect(renderedHeight()).toBeLessThan(cappedHeight(664)),
+      );
+      setViewport(originalInnerWidth, 768);
+    });
+
     test('does not cap the authored height while in edit mode', async () => {
       Object.defineProperty(window, 'innerHeight', {
         writable: true,
@@ -585,32 +636,46 @@ describe('ChartHolder', () => {
       restoreFlag();
     });
 
-    test('a big number in a row takes half a line and caps its height', () => {
-      renderWrapper(storeWithVizType('big_number_total'), {
-        fullSizeChartId: null,
-        component: {
-          ...defaultProps.component,
-          meta: { ...defaultProps.component.meta, width: 4, height: 50 },
-        },
-      });
+    test.each([
+      [375, 1],
+      [700, 2],
+      [900, 3],
+    ])(
+      'at %ipx a big number in a row shares its line %i to a line and caps its height',
+      (viewportWidth, tilesPerLine) => {
+        restoreMatchMedia();
+        restoreMatchMedia = mockMobileMatchMedia(viewportWidth);
+        renderWrapper(storeWithVizType('big_number_total'), {
+          fullSizeChartId: null,
+          component: {
+            ...defaultProps.component,
+            meta: { ...defaultProps.component.meta, width: 4, height: 50 },
+          },
+        });
 
-      expect(
-        screen.getByTestId('dashboard-component-chart-holder'),
-      ).toHaveClass(MOBILE_HALF_WIDTH_CLASS);
-      expect(renderedWidth()).toEqual(widthOf(GRID_COLUMN_COUNT / 2));
-      expect(
-        parseInt(
-          screen.getByTestId('chart-container').getAttribute('height') || '0',
-          10,
-        ),
-      ).toEqual(
-        Math.floor(
-          MOBILE_HALF_WIDTH_MAX_ROW_UNITS * GRID_BASE_UNIT -
-            CHART_MARGIN -
-            DEFAULT_HEADER_HEIGHT,
-        ),
-      );
-    });
+        expect(
+          screen.getByTestId('dashboard-component-chart-holder'),
+        ).toHaveClass(
+          MOBILE_TILE_CLASS,
+          `${MOBILE_TILE_CLASS}-${tilesPerLine}`,
+        );
+        expect(renderedWidth()).toEqual(
+          widthOf(GRID_COLUMN_COUNT / tilesPerLine),
+        );
+        expect(
+          parseInt(
+            screen.getByTestId('chart-container').getAttribute('height') || '0',
+            10,
+          ),
+        ).toEqual(
+          Math.floor(
+            MOBILE_TILE_MAX_ROW_UNITS * GRID_BASE_UNIT -
+              CHART_MARGIN -
+              DEFAULT_HEADER_HEIGHT,
+          ),
+        );
+      },
+    );
 
     test('other charts and wide big numbers take a full line', () => {
       const { unmount } = renderWrapper(storeWithVizType('pie'), {
@@ -618,7 +683,7 @@ describe('ChartHolder', () => {
       });
       expect(
         screen.getByTestId('dashboard-component-chart-holder'),
-      ).not.toHaveClass(MOBILE_HALF_WIDTH_CLASS);
+      ).not.toHaveClass(MOBILE_TILE_CLASS);
       expect(renderedWidth()).toEqual(widthOf(GRID_COLUMN_COUNT));
       unmount();
 
@@ -631,7 +696,7 @@ describe('ChartHolder', () => {
       });
       expect(
         screen.getByTestId('dashboard-component-chart-holder'),
-      ).not.toHaveClass(MOBILE_HALF_WIDTH_CLASS);
+      ).not.toHaveClass(MOBILE_TILE_CLASS);
       expect(renderedWidth()).toEqual(widthOf(GRID_COLUMN_COUNT));
     });
 
@@ -642,7 +707,7 @@ describe('ChartHolder', () => {
       });
       expect(
         screen.getByTestId('dashboard-component-chart-holder'),
-      ).not.toHaveClass(MOBILE_HALF_WIDTH_CLASS);
+      ).not.toHaveClass(MOBILE_TILE_CLASS);
       expect(renderedWidth()).toEqual(
         widthOf(defaultProps.component.meta.width),
       );
@@ -667,7 +732,7 @@ describe('ChartHolder', () => {
     );
     expect(
       screen.getByTestId('dashboard-component-chart-holder'),
-    ).not.toHaveClass(MOBILE_HALF_WIDTH_CLASS);
+    ).not.toHaveClass(MOBILE_TILE_CLASS);
   });
 
   test('should call deleteComponent when deleted', async () => {
