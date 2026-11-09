@@ -5,6 +5,7 @@ on:
     branches:
       - "master"
       - "[0-9].[0-9]*"
+      - "fork"
   pull_request:
     types: [synchronize, opened, reopened, ready_for_review]
 
@@ -195,3 +196,29 @@ jobs:
         run: |
           docker run --rm $TAG bash -c \
           "npm run build-storybook && npx playwright install-deps && npx playwright install chromium && npm run test-storybook:ci"
+
+  # Fork (see FORK.md): one check for branch protection to require. The jobs
+  # above are skipped as a whole when the frontend is unchanged, which leaves
+  # their matrix names unreported.
+  frontend-ci:
+    if: always()
+    needs:
+      [
+        frontend-build,
+        sharded-jest-tests,
+        lint-frontend,
+        validate-frontend,
+        test-storybook,
+      ]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require the frontend jobs to pass or be skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          for result in $RESULTS; do
+            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
+              exit 1
+            fi
+          done

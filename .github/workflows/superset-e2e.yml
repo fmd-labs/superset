@@ -5,6 +5,7 @@ on:
     branches:
       - "master"
       - "[0-9].[0-9]*"
+      - "fork"
   pull_request:
     types: [synchronize, opened, reopened, ready_for_review]
   workflow_dispatch:
@@ -266,3 +267,21 @@ jobs:
             ${{ github.workspace }}/superset-frontend/playwright-results/
             ${{ github.workspace }}/superset-frontend/test-results/
           name: playwright-artifact-${{ github.run_id }}-${{ github.job }}-${{ matrix.browser }}--${{ steps.set-safe-app-root.outputs.safe_app_root }}
+
+  # Fork (see FORK.md): one check for branch protection to require, whatever
+  # the shape of the matrices above.
+  e2e-ci:
+    if: always()
+    needs: [cypress-matrix, playwright-tests]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require the E2E jobs to pass or be skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          for result in $RESULTS; do
+            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
+              exit 1
+            fi
+          done

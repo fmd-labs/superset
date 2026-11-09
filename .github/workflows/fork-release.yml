@@ -1,0 +1,528 @@
+name: Fork release
+
+# Builds and publishes this fork's Docker image. See FORK.md (divergence D03 and "Releases").
+#
+# 1. Run this workflow manually on `fork` with the version to release (e.g. 6.1.0-fork.1). It builds
+#    the multi-arch `lean` image once, as upstream builds its release image, publishes it only under
+#    a candidate tag written once per run (`sha-<7 characters of the commit>-run.<run id>`), and
+#    smoke-tests exactly that image on both architectures. The run summary names the candidate's
+#    digest.
+# 2. Verify that image end to end.
+# 3. Push the annotated tag `<version>` on the same commit, with the verified digest in its message.
+#    The tag run promotes that digest, if a successful candidate run of that version for that commit
+#    published it, without rebuilding it. It never replaces an existing release image; one that
+#    already points to the digest counts as promoted.
+
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch' && format('Candidate {0}', inputs.version) ||
+  format('Promote {0}', github.ref_name) }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version this candidate is built for, e.g. 6.1.0-fork.1"
+        required: true
+        type: string
+  push:
+    tags:
+      - "*-fork.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  # The Python base upstream builds its release image on (the Dockerfile's default differs).
+  PY_VER: 3.10-slim-bookworm
+
+jobs:
+  prepare:
+    name: Resolve release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # Reads the checks of the commit a candidate is built from.
+      checks: read
+    outputs:
+      mode: ${{ steps.params.outputs.mode }}
+      version: ${{ steps.params.outputs.version }}
+      candidate: ${{ steps.params.outputs.candidate }}
+    steps:
+      - name: Resolve release parameters
+        id: params
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$GITHUB_REF" != "refs/heads/fork" ]]; then
+              echo "::error::Candidates are built from fork only, not from $GITHUB_REF."
+              exit 1
+            fi
+            MODE=candidate
+            VERSION="$INPUT_VERSION"
+          else
+            MODE=promote
+            VERSION="$GITHUB_REF_NAME"
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-fork\.[0-9]+$ ]]; then
+            echo "::error::Version '$VERSION' does not match X.Y.Z-fork.N"
+            exit 1
+          fi
+          {
+            echo "mode=$MODE"
+            echo "version=$VERSION"
+            # Unique per run, so no later run can replace an image that was already smoke-tested.
+            if [[ "$MODE" == "candidate" ]]; then
+              echo "candidate=sha-${GITHUB_SHA:0:7}-run.$GITHUB_RUN_ID"
+            fi
+          } >> "$GITHUB_OUTPUT"
+          echo "Mode: $MODE, version: $VERSION, commit: $GITHUB_SHA"
+
+      # A candidate is built only from a commit whose required checks passed (the checks branch
+      # protection requires on fork, see "Repository settings" in FORK.md).
+      - name: Require green CI
+        if: steps.params.outputs.mode == 'candidate'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          CHECKS="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?per_page=100" --paginate \
+            --jq '.check_runs[] | select(.conclusion == "success") | .name')"
+          MISSING=0
+          for REQUIRED in "Divergence audit" "frontend-ci" "e2e-ci" "pre-commit (current)" "unit-tests (current)" "test-postgres (current)"; do
+            if ! grep -qxF "$REQUIRED" <<< "$CHECKS"; then
+              echo "::error::\"$REQUIRED\" has not passed on $GITHUB_SHA. Wait for CI on fork, then run this workflow again."
+              MISSING=1
+            fi
+          done
+          exit "$MISSING"
+
+  # Candidate: build natively on each platform (no QEMU emulation), push by digest.
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: prepare
+    if: needs.prepare.outputs.mode == 'candidate'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker system prune -af --volumes
+          df -h /
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          labels: |
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
+            target=lean
+            base=${{ env.PY_VER }}
+
+      # Upstream's release image: the `lean` target on the Python base above, with the Dockerfile's
+      # defaults otherwise (no translations, no browsers, not dev mode).
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: lean
+          build-args: |
+            PY_VER=${{ env.PY_VER }}
+          platforms: ${{ matrix.platform }}
+          push: true
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        with:
+          name: digests-${{ strategy.job-index }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Candidate: combine the platform images under the run's candidate tag only.
+  merge:
+    name: Publish candidate
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.publish.outputs.digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/fork
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: "22"
+
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest list and push
+        id: publish
+        working-directory: /tmp/digests
+        env:
+          CANDIDATE: ${{ env.IMAGE }}:${{ needs.prepare.outputs.candidate }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # A candidate tag is written once: a re-run of this run keeps the candidate it already
+          # published, and the smoke test checks that same image again.
+          DIGEST="$(REGISTRY_USERNAME="$GITHUB_ACTOR" REGISTRY_PASSWORD="$GH_TOKEN" node "$GITHUB_WORKSPACE/.github/fork/registry.mjs" digest "$CANDIDATE")"
+          if [[ -n "$DIGEST" ]]; then
+            echo "$CANDIDATE was already published by this run as $DIGEST; keeping it."
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            sources=()
+            for digest in *; do
+              sources+=("$IMAGE@sha256:$digest")
+            done
+            docker buildx imagetools create -t "$CANDIDATE" "${sources[@]}"
+            DIGEST="$(docker buildx imagetools inspect "$CANDIDATE" --format '{{json .Manifest}}' | jq -r .digest)"
+          fi
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "$DIGEST" > /tmp/candidate-digest
+          {
+            echo "## Candidate $VERSION"
+            echo
+            echo '```'
+            echo "$CANDIDATE"
+            echo "$IMAGE@$DIGEST"
+            echo "commit $GITHUB_SHA"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The digest this run published, kept with the run: the promotion compares it with the verified
+      # digest, so that a candidate tag pointed elsewhere afterwards cannot be promoted. Recorded only
+      # by the attempt that published the candidate: a re-run keeps what the first attempt recorded.
+      - name: Record the candidate digest
+        if: steps.publish.outputs.published == 'true'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        with:
+          name: candidate-digest
+          path: /tmp/candidate-digest
+
+  # Candidate: the image, by digest, must migrate a fresh metadata database, create an admin, serve
+  # its API and the frontend this fork built, and keep running.
+  smoke:
+    name: Smoke test candidate (${{ matrix.platform }})
+    needs: [prepare, merge]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    env:
+      CANDIDATE: ghcr.io/${{ github.repository }}@${{ needs.merge.outputs.digest }}
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The lean image ships no Postgres driver, so the smoke test keeps its metadata in SQLite.
+      - name: Write the smoke-test configuration
+        run: |
+          mkdir -p /tmp/smoke
+          cat > /tmp/smoke/superset_config.py <<'PY'
+          SECRET_KEY = "smoke-test-only-0123456789abcdef0123456789abcdef"
+          SQLALCHEMY_DATABASE_URI = "sqlite:////app/superset_home/superset.db"
+          WTF_CSRF_ENABLED = False
+          PY
+
+      - name: Migrate a fresh metadata database and create an admin
+        run: |
+          set -euo pipefail
+          run() {
+            docker run --rm -e SUPERSET_CONFIG_PATH=/app/smoke/superset_config.py \
+              -v /tmp/smoke:/app/smoke:ro -v smoke-home:/app/superset_home "$CANDIDATE" "$@"
+          }
+          run superset db upgrade
+          run superset fab create-admin --username admin --password smoke-admin \
+            --firstname Smoke --lastname Test --email smoke@example.com
+          run superset init
+
+      - name: Start candidate
+        run: |
+          docker run -d --name superset -p 8088:8088 \
+            -e SUPERSET_CONFIG_PATH=/app/smoke/superset_config.py \
+            -v /tmp/smoke:/app/smoke:ro -v smoke-home:/app/superset_home "$CANDIDATE"
+
+      - name: Wait for /health
+        run: |
+          for _ in $(seq 1 60); do
+            if [[ "$(docker inspect -f '{{.State.Running}}' superset)" != "true" ]]; then
+              echo "::error::The candidate container exited"
+              docker logs superset 2>&1 | tail -n 200
+              exit 1
+            fi
+            if curl -fsS --max-time 5 http://127.0.0.1:8088/health; then
+              echo
+              echo "Candidate is healthy"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Candidate did not become healthy in time"
+          docker logs superset 2>&1 | tail -n 200
+          exit 1
+
+      - name: Check the API, the frontend and the fork's code in it
+        run: |
+          set -euo pipefail
+          TOKEN="$(curl -fsS --max-time 10 -H 'Content-Type: application/json' \
+            -d '{"username":"admin","password":"smoke-admin","provider":"db","refresh":false}' \
+            http://127.0.0.1:8088/api/v1/security/login | jq -r .access_token)"
+          curl -fsS --max-time 10 -H "Authorization: Bearer $TOKEN" \
+            'http://127.0.0.1:8088/api/v1/dashboard/?q=(page_size:1)' > /dev/null
+          curl -fsS --max-time 10 -o /dev/null http://127.0.0.1:8088/login/
+          curl -fsS --max-time 10 -o /dev/null http://127.0.0.1:8088/static/assets/manifest.json
+          # The dashboard's time grain switch (D04) is in the built frontend.
+          if ! docker exec superset sh -c "grep -lq 'chart_time_grains' /app/superset/static/assets/*.js"; then
+            echo "::error::The built frontend lacks the fork's code"
+            exit 1
+          fi
+          sleep 20
+          if [[ "$(docker inspect -f '{{.State.Running}}' superset)" != "true" ]] ||
+            ! curl -fsS --max-time 5 http://127.0.0.1:8088/health; then
+            echo "::error::The candidate stopped answering"
+            docker logs superset 2>&1 | tail -n 200
+            exit 1
+          fi
+          echo
+          echo "The candidate serves its API and the fork's frontend"
+
+      - name: Remove candidate
+        if: always()
+        run: |
+          docker rm -f superset || true
+          docker volume rm smoke-home || true
+
+  # Tag: publish the verified candidate under its version, without rebuilding it.
+  promote:
+    name: Promote candidate
+    needs: prepare
+    if: needs.prepare.outputs.mode == 'promote'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      # Finds the candidate run that built and smoke-tested this commit.
+      actions: read
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/fork
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: "22"
+
+      # The image to promote is the one verified by hand, named by digest in the release tag's message.
+      # It must come from a successful manual run of this version for this commit on fork: that run
+      # built it and smoke-tested exactly that image.
+      - name: Find the verified candidate
+        id: candidate
+        run: |
+          set -euo pipefail
+          TAG_OBJECT="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" --jq '.object.type + " " + .object.sha')"
+          if [[ "${TAG_OBJECT%% *}" != "tag" ]]; then
+            echo "::error::$GITHUB_REF_NAME must be an annotated tag whose message names the verified image digest (see Releases in FORK.md)."
+            exit 1
+          fi
+          MESSAGE="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/${TAG_OBJECT#* }" --jq .message)"
+          VERIFIED="$( (grep -oE 'sha256:[0-9a-f]{64}' <<< "$MESSAGE" || true) | sort -u)"
+          if [[ -z "$VERIFIED" || "$VERIFIED" == *$'\n'* ]]; then
+            echo "::error::The message of $GITHUB_REF_NAME must name exactly one image digest (sha256:...): the verified one."
+            exit 1
+          fi
+
+          RUNS="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/fork-release.yml/runs?head_sha=$GITHUB_SHA&event=workflow_dispatch&status=success&per_page=100" \
+            --jq ".workflow_runs[] | select(.head_branch == \"fork\" and .display_title == \"Candidate $VERSION\") | .id")"
+          # Only the run that published the verified digest can make this succeed: a new run builds a
+          # new digest, and the tag cannot be moved.
+          RECOVERY="If the run that published $VERIFIED is still running, or failed only its smoke test (Re-run failed jobs), re-run this job once it has succeeded; otherwise release a new version."
+          if [[ -z "$RUNS" ]]; then
+            echo "::error::No successful candidate run of $VERSION for $GITHUB_SHA. $RECOVERY"
+            exit 1
+          fi
+
+          readarray -t RUN_IDS <<< "$RUNS"
+          for RUN_ID in "${RUN_IDS[@]}"; do
+            CANDIDATE="$IMAGE:sha-${GITHUB_SHA:0:7}-run.$RUN_ID"
+            DIGEST="$(REGISTRY_USERNAME="$GITHUB_ACTOR" REGISTRY_PASSWORD="$GH_TOKEN" node .github/fork/registry.mjs digest "$CANDIDATE")"
+            # What the run itself recorded it published, which no later change to the tag can alter.
+            RECORDED="$(gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name candidate-digest --dir "/tmp/run-$RUN_ID" >/dev/null 2>&1 &&
+              cat "/tmp/run-$RUN_ID/candidate-digest" || true)"
+            if [[ "$DIGEST" == "$VERIFIED" && "$RECORDED" != "$VERIFIED" ]]; then
+              echo "Run $RUN_ID recorded ${RECORDED:-no digest}, but its candidate tag now names $VERIFIED"
+              continue
+            fi
+            if [[ "$DIGEST" == "$VERIFIED" ]]; then
+              {
+                echo "run-id=$RUN_ID"
+                echo "reference=$CANDIDATE"
+                echo "digest=$DIGEST"
+              } >> "$GITHUB_OUTPUT"
+              echo "Candidate $CANDIDATE ($DIGEST) from run $RUN_ID"
+              exit 0
+            fi
+            echo "Run $RUN_ID published ${DIGEST:-no image}, not $VERIFIED"
+          done
+          echo "::error::No successful candidate run of $VERSION for $GITHUB_SHA published $VERIFIED. $RECOVERY"
+          exit 1
+
+      # Checked before anything is created, so this job can simply be re-run once the package is public.
+      - name: Check the candidate can be pulled anonymously
+        env:
+          CANDIDATE: ${{ steps.candidate.outputs.reference }}
+          DIGEST: ${{ steps.candidate.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if ! PUBLIC_DIGEST="$(node .github/fork/registry.mjs digest "$CANDIDATE")" || [[ "$PUBLIC_DIGEST" != "$DIGEST" ]]; then
+            echo "::error::$CANDIDATE cannot be pulled anonymously. Make the package public (package settings, Change visibility), then re-run this job."
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Promote
+        env:
+          DIGEST: ${{ steps.candidate.outputs.digest }}
+        run: |
+          set -euo pipefail
+          TARGET="$IMAGE:$VERSION"
+          lookup() {
+            REGISTRY_USERNAME="$GITHUB_ACTOR" REGISTRY_PASSWORD="$GH_TOKEN" node .github/fork/registry.mjs digest "$1"
+          }
+          # An authenticated lookup also reads as "absent" for a package the token cannot read; the
+          # candidate was found in this same package above, which rules that out.
+          EXISTING="$(lookup "$TARGET")"
+          if [[ "$EXISTING" == "$DIGEST" ]]; then
+            echo "$TARGET already points to $DIGEST; nothing to do."
+          elif [[ -n "$EXISTING" ]]; then
+            echo "::error::$TARGET already exists as $EXISTING; release images are never replaced."
+            exit 1
+          else
+            # imagetools should push a single source index unchanged; confirm it before the tag exists,
+            # as a release tag is never replaced. The dry run prints the index followed by a newline.
+            PLANNED="sha256:$(docker buildx imagetools create --dry-run -t "$TARGET" "$IMAGE@$DIGEST" | head -c -1 | sha256sum | cut -d' ' -f1)"
+            if [[ "$PLANNED" != "$DIGEST" ]]; then
+              echo "::error::Promoting would publish $PLANNED instead of $DIGEST; nothing was changed."
+              exit 1
+            fi
+            docker buildx imagetools create -t "$TARGET" "$IMAGE@$DIGEST"
+            PROMOTED="$(lookup "$TARGET")"
+            if [[ "$PROMOTED" != "$DIGEST" ]]; then
+              echo "::error::$TARGET points to $PROMOTED instead of $DIGEST."
+              exit 1
+            fi
+          fi
+
+      - name: Summary
+        env:
+          CANDIDATE: ${{ steps.candidate.outputs.reference }}
+          DIGEST: ${{ steps.candidate.outputs.digest }}
+          RUN_ID: ${{ steps.candidate.outputs.run-id }}
+        run: |
+          {
+            echo "## Released $VERSION"
+            echo
+            echo '```'
+            echo "$IMAGE:$VERSION"
+            echo "$IMAGE@$DIGEST"
+            echo "commit $GITHUB_SHA"
+            echo "promoted from $CANDIDATE"
+            echo "candidate run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

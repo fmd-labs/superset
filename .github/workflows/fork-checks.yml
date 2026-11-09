@@ -1,0 +1,41 @@
+name: Fork checks
+
+# Checks that only apply to this fork. See FORK.md (divergence D02).
+
+on:
+  push:
+    branches:
+      - fork
+  pull_request:
+    branches:
+      - fork
+
+permissions:
+  contents: read
+
+jobs:
+  divergence:
+    name: Divergence audit
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # Compares the workflow inventory with the repository's Actions settings.
+      actions: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          # The audit diffs against the upstream release the fork is based on.
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: "22"
+
+      - name: Check FORK.md accounts for every difference from upstream
+        run: node .github/fork/audit-divergence.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
