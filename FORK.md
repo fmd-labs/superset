@@ -1,0 +1,321 @@
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+# Fork divergences
+
+This repository is a fork of [apache/superset](https://github.com/apache/superset) (Apache-2.0). This file lists
+every **divergence**: each change that makes this fork differ from the upstream release it is based on. A pull
+request that adds, changes or removes a divergence updates this file in the same pull request.
+
+## Base
+
+- **Upstream:** [apache/superset](https://github.com/apache/superset)
+- **Upstream tag:** `6.1.0`
+- **Merge base:** `c83fb2bb1dcfac41ac51bcebd82471f4a7180d18` (the commit the `6.1.0` tag names)
+- **Upstream image of the merge base:**
+  `apache/superset:6.1.0@sha256:16b50bbef6648912a79e3293d418fefa743ce555d36c5af6b85d859119ed7f88` (the `lean`
+  image, as rebuilt by upstream on 2026-09-07; see **Roll back to an upstream image**)
+- **Fork created:** 2026-11-09. The integration branch is `fork`; the fork has no `master`.
+
+The fork follows upstream **releases**, not `master`: its base is a release tag, and moving to a newer release is a
+procedure of its own (see **Move to a new upstream release**). A release is what an operator runs, and a fork image
+is then always one upstream release plus the divergences below.
+
+## Policy
+
+- **The metadata database stays upstream's.** The fork adds, changes and removes no migration under
+  `superset/migrations/`, so the upstream image of the same release always runs on a metadata database the fork
+  image used (see **Roll back to an upstream image**). The divergence audit (D02) enforces it. What the fork stores
+  lives in what upstream already stores as JSON (chart `params`, dashboard `json_metadata`) under keys of its own,
+  which upstream ignores.
+- **Generic and reusable.** The fork is a general-purpose Superset: every divergence is useful to any operator, one
+  that changes behavior is configurable and defaults to upstream's, and none names a particular deployment, product
+  or customer, in code, comments, docs, commit messages and pull requests alike.
+- **Upstream behavior by default.** A chart, dashboard or setting that does not use a divergence behaves exactly as
+  upstream.
+- **Upstream first where it fits.** Divergences that are useful to every Superset deployment are candidates for an
+  upstream proposal; each records its upstream status, and a divergence is removed once an upstream release ships
+  it.
+- **Upstream conventions.** Code the fork adds follows upstream's: the Apache license header, prettier, oxlint and
+  the custom frontend rules, tests next to the code, and `pre-commit run --all-files` clean.
+
+## Format
+
+Each divergence is a `### Dnn — title` section below. IDs are never reused. Each section has these bullets:
+
+- **Since:** date the divergence was first merged into the fork.
+- **Kind:** `feature`, `fix`, `refactor`, `test`, `docs` or `ci`.
+- **Upstream:** `fork-only`, `not proposed`, or a link to the upstream pull request or issue with its state.
+- **Files:** one backticked path per nested bullet: an exact path, or a directory prefix ending in `/` for a directory
+  the fork adds (changes inside upstream directories are listed file by file). Deleted files and the old path of a
+  renamed file are listed too. A path may appear under more than one divergence.
+- **What**, **Why** (optional) and **Remove when**.
+
+The divergence audit (D02) reads the **Files** lists and the workflow inventory mechanically; keep them in this format.
+It skips HTML comments and fenced code blocks.
+
+## Divergences
+
+### D01 — Fork notice and divergence log
+
+- **Since:** 2026-11-09
+- **Kind:** docs
+- **Upstream:** fork-only
+- **Files:**
+  - `README.md`
+  - `FORK.md`
+  - `AGENTS.md`
+- **What:** a notice at the top of `README.md` linking to this file; this file; a section in `AGENTS.md` (which
+  `CLAUDE.md`, `GEMINI.md` and `GPT.md` link to) that every divergence is recorded here and follows the **Policy**
+  above.
+- **Remove when:** never (fork-only).
+
+### D02 — Fork checks in CI
+
+- **Since:** 2026-11-09
+- **Kind:** ci
+- **Upstream:** fork-only
+- **Files:**
+  - `.github/workflows/fork-checks.yml`
+  - `.github/fork/`
+- **What:** the `Fork checks` workflow runs on every push and pull request to `fork`. Its **Divergence audit** job
+  (`node .github/fork/audit-divergence.mjs`) checks that:
+  - every file that differs from the upstream tag named under **Base** is listed under a divergence, every listed
+    path still differs, and a directory entry only names a directory the fork adds;
+  - nothing under `superset/migrations/` differs (see **Policy**);
+  - a line of a **Files** list is one backticked path;
+  - every workflow file is in the workflow inventory, with the state it has in this repository's Actions settings
+    (compared in CI only).
+
+  Run it locally with `FORK_AUDIT_UPSTREAM_REF=6.1.0 node .github/fork/audit-divergence.mjs --working-tree` after
+  `git fetch upstream tag 6.1.0`.
+- **Why:** the fork's tooling lives in `.github/fork/`, where upstream's change detector (which runs the Python
+  suites for any change under `scripts/`) and its license check (which skips hidden directories) leave it alone.
+- **Remove when:** never (fork-only).
+
+### D03 — Fork image releases
+
+- **Since:** 2026-11-09
+- **Kind:** ci
+- **Upstream:** fork-only
+- **Files:**
+  - `.github/workflows/fork-release.yml`
+  - `.github/fork/registry.mjs`
+- **What:** the `Fork release` workflow publishes this fork's image to `ghcr.io/fmd-labs/superset`, in place of
+  upstream's `docker.yml` and `tag-release.yml` (see D04). It builds upstream's release image: the `lean` target of
+  the `Dockerfile`, with `PY_VER=3.10-slim-bookworm` (the base upstream's release image is built on; the Dockerfile's
+  default differs) and the Dockerfile's defaults otherwise (no translations, no browsers, not dev mode), natively on
+  amd64 and arm64. A candidate is built only from a commit on `fork` on which the checks that branch protection
+  requires have passed, and its smoke test requires the image to migrate a fresh metadata database, create an admin,
+  answer `/health`, its login and API, serve the frontend this fork built (D05's code is in its bundle), and keep
+  running. `.github/fork/registry.mjs` looks up image digests and tells a missing tag apart from a failed request.
+  See **Releases** for the procedure.
+- **Why:** a release is built once, smoke-tested, verified by hand, and promoted unchanged. Only the image the release
+  tag names by digest can be promoted, and only if a successful candidate run of that commit and version published it:
+  the run records the digest it published, and the promotion requires both that record and the candidate tag to name
+  the verified digest. Candidate tags are written once, the workflow never replaces an existing release image, and no
+  `latest` or floating tags are published.
+- **Remove when:** never (fork-only).
+
+### D04 — Upstream CI in the fork
+
+- **Since:** 2026-11-09
+- **Kind:** ci
+- **Upstream:** fork-only
+- **Files:**
+  - `.github/workflows/bump-python-package.yml`
+  - `.github/workflows/cancel_duplicates.yml`
+  - `.github/workflows/check_db_migration_confict.yml`
+  - `.github/workflows/claude.yml`
+  - `.github/workflows/codeql-analysis.yml`
+  - `.github/workflows/docker.yml`
+  - `.github/workflows/ecs-task-definition.json`
+  - `.github/workflows/embedded-sdk-release.yml`
+  - `.github/workflows/ephemeral-env-pr-close.yml`
+  - `.github/workflows/ephemeral-env.yml`
+  - `.github/workflows/generate-FOSSA-report.yml`
+  - `.github/workflows/issue_creation.yml`
+  - `.github/workflows/labeler.yml`
+  - `.github/workflows/latest-release-tag.yml`
+  - `.github/workflows/pr-lint.yml`
+  - `.github/workflows/release.yml`
+  - `.github/workflows/showtime-cleanup.yml`
+  - `.github/workflows/showtime-trigger.yml`
+  - `.github/workflows/superset-docs-deploy.yml`
+  - `.github/workflows/superset-docs-verify.yml`
+  - `.github/workflows/superset-helm-release.yml`
+  - `.github/workflows/superset-playwright.yml`
+  - `.github/workflows/superset-python-presto-hive.yml`
+  - `.github/workflows/supersetbot.yml`
+  - `.github/workflows/tag-release.yml`
+  - `.github/workflows/tech-debt.yml`
+  - `.github/workflows/welcome-new-users.yml`
+  - `.github/workflows/check-python-deps.yml`
+  - `.github/workflows/dependency-review.yml`
+  - `.github/workflows/github-action-validator.yml`
+  - `.github/workflows/pre-commit.yml`
+  - `.github/workflows/superset-app-cli.yml`
+  - `.github/workflows/superset-e2e.yml`
+  - `.github/workflows/superset-frontend.yml`
+  - `.github/workflows/superset-python-integrationtest.yml`
+  - `.github/workflows/superset-python-unittest.yml`
+  - `.github/workflows/superset-translations.yml`
+- **What:**
+  - **Removed:** upstream's workflows that publish (Docker Hub images, npm packages, the Helm chart, the docs site,
+    release tags), deploy ephemeral environments, run upstream's bots and community automation (labels, welcome
+    comments, the Claude and SupersetBot comment commands, PR title lint, tech-debt sheets, FOSSA), run nightly or on
+    `pull_request_target` with secrets, or give no signal here (the migration-conflict check, which finds nothing on
+    pull requests; the experimental Playwright suite, which upstream runs in shadow mode; the Presto and Hive suite;
+    CodeQL, which GitHub's default setup covers). `ecs-task-definition.json` only served the ephemeral environments.
+    A removed workflow cannot run from the default branch, whatever its trigger.
+  - **Kept:** the frontend build, lint, type check and unit tests, pre-commit, the Python unit and integration suites,
+    E2E (Cypress and the required Playwright tests), translations, the app CLI, the dependency and license checks and
+    the action validator. They run on pushes to `fork` as well as on pull requests, so a merged commit carries their
+    checks (the release workflow requires them, D03). Workflows that only run for paths the fork never changes (the
+    embedded SDK, the websocket server, the Helm chart lint, the extensions CLI) and the hold-label check are kept
+    unchanged.
+  - `superset-frontend.yml` and `superset-e2e.yml` end with one job each, `frontend-ci` and `e2e-ci`, that passes when
+    every other job passed or was skipped: the frontend jobs are skipped as a whole when the frontend is unchanged,
+    which leaves the names of their matrix jobs unreported, so branch protection requires these two instead.
+  - `pre-commit.yml` installs `helm-docs` with Go instead of Homebrew, backported from upstream's `6.1` branch
+    (`74c4ac868`, apache/superset#42113): the Homebrew step fails on current runners.
+- **Remove when:** never (fork-only). The backport goes when the base contains it (6.1.1 or later).
+
+## Repository settings
+
+Settings that live in GitHub rather than in files:
+
+- `fork` is the default branch and is protected for everyone, administrators included: changes land through pull
+  requests, and force pushes and deletion are blocked.
+- Pull requests to `fork` merge only when `Divergence audit`, `frontend-ci`, `e2e-ci`, `pre-commit (current)`,
+  `unit-tests (current)`, `test-postgres (current)` and `License Check` pass. The `Fork release` workflow requires the
+  same checks on a candidate's commit, except `License Check`, which upstream runs on pull requests only (`Require
+  green CI`); keep both lists in step.
+- Tags matching `*-fork.*` cannot be moved or deleted.
+- Merge methods: squash for fork changes, merge commits for moves to a new upstream release; rebase merging is off.
+- Workflow permissions are read-only by default, and workflows from outside contributors need approval.
+- The `superset` container package is public, so deployments pull it anonymously (see **Releases**).
+
+### Workflow inventory
+
+Every file in `.github/workflows/` must be listed here with its state in this fork's Actions settings (the divergence
+audit enforces both), so a workflow added by an upstream release cannot start running in this fork unnoticed.
+
+| Workflow                              | Origin     | State in this fork |
+| ------------------------------------- | ---------- | ------------------ |
+| `check-python-deps.yml`               | upstream   | enabled            |
+| `dependency-review.yml`               | upstream   | enabled            |
+| `embedded-sdk-test.yml`               | upstream   | enabled            |
+| `github-action-validator.yml`         | upstream   | enabled            |
+| `license-check.yml`                   | upstream   | enabled            |
+| `no-hold-label.yml`                   | upstream   | enabled            |
+| `pre-commit.yml`                      | upstream   | enabled            |
+| `superset-app-cli.yml`                | upstream   | enabled            |
+| `superset-e2e.yml`                    | upstream   | enabled            |
+| `superset-extensions-cli.yml`         | upstream   | enabled            |
+| `superset-frontend.yml`               | upstream   | enabled            |
+| `superset-helm-lint.yml`              | upstream   | enabled            |
+| `superset-python-integrationtest.yml` | upstream   | enabled            |
+| `superset-python-unittest.yml`        | upstream   | enabled            |
+| `superset-translations.yml`           | upstream   | enabled            |
+| `superset-websocket.yml`              | upstream   | enabled            |
+| `fork-checks.yml`                     | fork (D02) | enabled            |
+| `fork-release.yml`                    | fork (D03) | enabled            |
+
+## Releases
+
+| Fork tag | Upstream base | Image | Divergences | Notes |
+| -------- | ------------- | ----- | ----------- | ----- |
+
+Fork releases are tagged `<upstream version>-fork.<n>`, for example `6.1.0-fork.1`, like upstream's tags without a
+`v`. `<upstream version>` is the upstream tag named in **Base**, and `<n>` counts fork releases on that upstream
+version. A fork tag is a SemVer pre-release, so it sorts below the upstream release of the same number; that is
+intended, as no floating tags (`latest`, `6.1`) are published. The image tag is the git tag:
+`ghcr.io/fmd-labs/superset:6.1.0-fork.1`.
+
+To release:
+
+1. Wait for CI on `fork` after the last pull request of the release is merged: a candidate is built only from a commit
+   whose required checks passed.
+2. Run the `Fork release` workflow on `fork` with the version:
+   `gh workflow run fork-release.yml --ref fork -f version=6.1.0-fork.1`. The run is named `Candidate 6.1.0-fork.1`.
+   It builds the amd64 and arm64 images once, publishes them only under a candidate tag unique to the run,
+   `sha-<first 7 characters of the commit>-run.<run id>` (with the version in the image labels), records the digest
+   it published with the run (artifact `candidate-digest`), and smoke-tests exactly that image on both architectures.
+   The run summary lists the candidate by tag and digest, and the full commit. A candidate tag is written once:
+   re-running a run keeps the candidate it published and smoke-tests that image again, and building again takes a new
+   run.
+3. The first candidate run creates the `superset` package in this organization's container registry as private: make
+   it public in the package settings (**Change visibility**) before promoting.
+4. Verify the candidate image, by digest, end to end.
+5. Once the candidate run has succeeded, tag its commit, naming the commit explicitly and the verified digest in the
+   message, and push only that tag:
+   `git tag -a 6.1.0-fork.1 <commit> -m "6.1.0-fork.1" -m "Image: ghcr.io/fmd-labs/superset@sha256:<digest>"`, then
+   `git push origin 6.1.0-fork.1` (never `git push --tags`). A pushed tag cannot be moved, so check it first:
+   `git tag -l --format='%(contents)' 6.1.0-fork.1` and
+   `docker buildx imagetools inspect ghcr.io/fmd-labs/superset@sha256:<digest>` (a local tag can still be deleted with
+   `git tag -d`). The tag run promotes exactly that digest, provided a successful `Candidate 6.1.0-fork.1` run of that
+   commit on `fork` published it (as that run recorded, and as its candidate tag still names), without rebuilding it.
+   It checks that the image can be pulled anonymously before creating anything, never replaces an existing release
+   image, and treats a release tag that already points to the digest as done, so a failed run can be re-run.
+6. Record the release in the table above (tag, upstream base, image digest, divergences) in a follow-up pull request.
+
+## Procedures
+
+### Set up a clone
+
+```sh
+git clone https://github.com/fmd-labs/superset.git && cd superset
+git remote add --no-tags upstream https://github.com/apache/superset.git
+git remote set-url --push upstream DISABLED
+git fetch upstream tag 6.1.0
+```
+
+`--no-tags` keeps upstream's tags out of the clone; fetch the release tags you need explicitly.
+
+### Move to a new upstream release
+
+Upstream cuts each release on a release branch with cherry-picks, so a release is not a descendant of the previous
+one, and merging it into `fork` would conflict with every backport. The move rebuilds the divergences on the new
+release instead, and records both histories:
+
+1. `git fetch upstream tag <version>`, then create `sync/upstream-<version>` from the tag.
+2. Re-apply each divergence on top of it (`git cherry-pick` of the fork's commits since the last move, or by hand),
+   keeping upstream's change where they conflict. Drop a divergence only on purpose, and remove its section in the
+   same pull request. Divergences that the new release ships are removed.
+3. Review every change under `.github/workflows/`: workflows added upstream run in this fork automatically. A new
+   workflow the fork does not run is removed in the same pull request (D04); one it runs is added to the workflow
+   inventory.
+4. Record `fork` as a parent without taking any of its content: `git merge -s ours origin/fork`. Then update
+   **Base** (tag, merge base, upstream image) and the upstream status of each divergence, and run the divergence
+   audit against the new tag.
+5. Open a pull request and merge it with a merge commit; squashing it loses the history it records. Moving to a newer
+   release can bring metadata migrations: they apply when the new fork image starts, as with upstream, and a rollback
+   then goes to the upstream image of the new release.
+
+### Roll back to an upstream image
+
+Roll back only to the upstream image of the release named in **Base**, or to a newer upstream release: an older image
+can lack migrations the metadata database has already applied. Pin it by digest. Since the fork changes no migration
+(see **Policy**), the upstream image of the same release runs on the fork's metadata database as it is.
+Divergence-specific caveats are listed under **Rollback notes**.
+
+## Rollback notes
+
+None yet.

@@ -2,6 +2,10 @@
 
 Apache Superset is a data visualization platform with Flask/Python backend and React/TypeScript frontend.
 
+## Fork Divergences
+
+This repository is a fork of `apache/superset`, based on an upstream release tag (see **Base** in `FORK.md`). Every change that makes it differ from that release MUST be recorded in `FORK.md` in the same pull request, including every file it touches (see its **Format** section); the divergence audit (`node .github/fork/audit-divergence.mjs --working-tree`, with `FORK_AUDIT_UPSTREAM_REF` set to the fetched tag) checks it. The fork never adds or changes a metadata migration (`superset/migrations/`), so the upstream image of the same release keeps working on the same database. Every divergence is generic: any Superset operator can use it, behavior changes are opt-in and default to upstream's, and nothing in code, comments, docs, commits or pull requests names a particular deployment, product or customer. Fork tooling lives in `.github/fork/`, not `scripts/`.
+
 ## ⚠️ CRITICAL: Always Run Pre-commit Before Pushing
 
 **ALWAYS run `pre-commit run --all-files` before pushing commits.** CI will fail if pre-commit checks don't pass. This is non-negotiable.

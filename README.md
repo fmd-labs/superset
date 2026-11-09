@@ -17,6 +17,9 @@ specific language governing permissions and limitations
 under the License.
 -->
 
+> **Fork notice:** this repository is a fork of [apache/superset](https://github.com/apache/superset).
+> Every difference from the upstream release it is based on is documented in [FORK.md](FORK.md).
+
 # Superset
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/license/apache-2-0)
