@@ -307,7 +307,9 @@ Settings that live in GitHub rather than in files:
   `unit-tests (current)`, `test-postgres (current)` and `License Check` pass. The `Fork release` workflow requires the
   same checks on a candidate's commit, except `License Check`, which upstream runs on pull requests only (`Require
   green CI`); keep both lists in step.
-- Tags matching `*-fork.*` cannot be moved or deleted.
+- Tags matching `*-fork.*` cannot be moved or deleted, by anyone (ruleset "Immutable fork release tags", no bypass),
+  and only administrators can create them (ruleset "Only admins create fork release tags"), since pushing one
+  promotes a release.
 - Merge methods: squash for fork changes, merge commits for moves to a new upstream release; rebase merging is off.
 - Workflow permissions are read-only by default, and workflows from outside contributors need approval.
 - The `superset` container package is public, so deployments pull it anonymously (see **Releases**).
@@ -340,8 +342,9 @@ audit enforces both), so a workflow added by an upstream release cannot start ru
 
 ## Releases
 
-| Fork tag | Upstream base | Image | Divergences | Notes |
-| -------- | ------------- | ----- | ----------- | ----- |
+| Fork tag       | Upstream base           | Image                                                                                               | Divergences | Notes                                                                          |
+| -------------- | ----------------------- | --------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------ |
+| `6.1.0-fork.1` | `c83fb2b` (tag `6.1.0`) | `ghcr.io/fmd-labs/superset@sha256:ee804ae1665ace84fd043a1b21767435623c2386550e0b62842088369cb78dec` | D01–D07     | First release (#1, #2), of `10b010a`; candidate `sha-10b010a-run.42634390023`. |
 
 Fork releases are tagged `<upstream version>-fork.<n>`, for example `6.1.0-fork.1`, like upstream's tags without a
 `v`. `<upstream version>` is the upstream tag named in **Base**, and `<n>` counts fork releases on that upstream
