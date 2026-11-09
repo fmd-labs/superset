@@ -127,3 +127,25 @@ test('should render the buttons', async () => {
   userEvent.click(testButton);
   expect(mockFunc).toHaveBeenCalled();
 });
+
+test('while loading, shows placeholders in place of the tab labels and buttons', () => {
+  const buttons = [
+    {
+      name: 'test_button',
+      buttonStyle: 'primary' as ButtonProps['buttonStyle'],
+    },
+    { name: 'link_button', buttonStyle: 'link' as ButtonProps['buttonStyle'] },
+  ];
+  const { container } = setup({ buttons, loading: true });
+
+  mockedProps.tabs.forEach(tab =>
+    expect(screen.queryByText(tab.label)).not.toBeInTheDocument(),
+  );
+  expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  expect(
+    container.querySelectorAll('.ant-menu-item .ant-skeleton'),
+  ).toHaveLength(mockedProps.tabs.length);
+  expect(container.querySelectorAll('.ant-skeleton-button')).toHaveLength(
+    buttons.length,
+  );
+});

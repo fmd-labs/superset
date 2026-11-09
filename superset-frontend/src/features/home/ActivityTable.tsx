@@ -195,7 +195,7 @@ export default function ActivityTable({
   };
 
   if ((isFetchingEditedCards && !editedCards) || isFetchingActivityData) {
-    return <LoadingCards />;
+    return <LoadingCards menuButtons={0} />;
   }
   return (
     <Styles>

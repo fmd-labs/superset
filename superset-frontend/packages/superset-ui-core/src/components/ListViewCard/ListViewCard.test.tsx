@@ -61,3 +61,17 @@ describe('ListViewCard', () => {
     expect(screen.getByTestId('image-loader')).toBeVisible();
   });
 });
+
+test('a loading card puts its title placeholders on one row, like a loaded title', () => {
+  render(
+    <ListViewCard title="Card Title" description="" loading cover={<></>} />,
+  );
+
+  const titleRow = screen
+    .getByTestId('skeleton-card')
+    .querySelector('.ant-card-meta-title > div > div');
+  expect(titleRow).toContainElement(
+    titleRow!.querySelector('.ant-skeleton-input') as HTMLElement,
+  );
+  expect(titleRow!.querySelector('.card-actions')).toBeInTheDocument();
+});

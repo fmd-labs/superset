@@ -30,6 +30,10 @@ import Header from '.';
 import { DASHBOARD_HEADER_ID } from '../../util/constants';
 import { UPDATE_COMPONENTS } from '../../actions/dashboardLayout';
 import { AutoRefreshStatus } from '../../types/autoRefresh';
+import {
+  enableMobileConsumptionFlag,
+  mockMobileMatchMedia,
+} from 'spec/helpers/mobileTestUtils';
 
 const initialState = {
   dashboardInfo: {
@@ -967,4 +971,39 @@ test('should sync theme ref when navigating between dashboards', async () => {
   await waitFor(() => {
     expect(setUnsavedChanges).toHaveBeenCalledTimes(0);
   });
+});
+
+test('on a phone, shows the title, star and menu, but no editing, status or refresh icon', async () => {
+  const restoreMatchMedia = mockMobileMatchMedia();
+  const restoreFlag = enableMobileConsumptionFlag();
+  try {
+    setup({
+      dashboardInfo: {
+        ...initialState.dashboardInfo,
+        dash_edit_perm: true,
+        dash_save_perm: true,
+      },
+      dashboardState: {
+        ...initialState.dashboardState,
+        sliceIds: [1],
+      },
+      charts: {
+        1: { latestQueryFormData: { metric: 'value' } },
+      },
+    });
+
+    expect(screen.getByDisplayValue('Dashboard Title')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'unstarred' })).toBeInTheDocument();
+    expect(screen.queryByText('Edit dashboard')).not.toBeInTheDocument();
+    expect(screen.queryByText('Draft')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('refresh-button')).not.toBeInTheDocument();
+
+    // Refreshing stays available through the menu.
+    await openActionsDropdown();
+    userEvent.click(screen.getByText('Refresh dashboard'));
+    expect(onRefresh).toHaveBeenCalled();
+  } finally {
+    restoreMatchMedia();
+    restoreFlag();
+  }
 });

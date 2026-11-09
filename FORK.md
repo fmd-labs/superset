@@ -297,6 +297,107 @@ It skips HTML comments and fenced code blocks.
   `TIME_GRAIN_ADDONS`, such as `P2W`, got ticks labelled with seconds (`:40s`).
 - **Remove when:** upstream formats added grains the same way.
 
+### D08 — Dashboards on small screens
+
+- **Since:** 2026-11-09
+- **Kind:** feature
+- **Upstream:** partial backport of [apache/superset#37141](https://github.com/apache/superset/pull/37141) (merged,
+  in 7.0), plus additions of the fork's own
+- **Files:**
+  - `docs/static/feature-flags.json`
+  - `superset/config.py`
+  - `superset/initialization/__init__.py`
+  - `superset/templates/superset/spa.html`
+  - `superset-frontend/packages/superset-ui-core/src/utils/featureFlags.ts`
+  - `superset-frontend/spec/helpers/mobileTestUtils.ts`
+  - `superset-frontend/src/hooks/useIsMobile.ts`
+  - `superset-frontend/src/dashboard/util/constants.ts`
+  - `superset-frontend/src/dashboard/components/gridComponents/Row/Row.tsx`
+  - `superset-frontend/src/dashboard/components/resizable/ResizableContainer.tsx`
+  - `superset-frontend/src/dashboard/components/gridComponents/ChartHolder/ChartHolder.tsx`
+  - `superset-frontend/src/dashboard/components/gridComponents/ChartHolder/ChartHolder.test.tsx`
+  - `superset-frontend/src/dashboard/components/gridComponents/Markdown/Markdown.tsx`
+  - `superset-frontend/src/dashboard/components/DashboardBuilder/DashboardWrapper.tsx`
+  - `superset-frontend/src/dashboard/components/SliceHeader/index.tsx`
+  - `superset-frontend/src/dashboard/components/SliceHeader/SliceHeader.test.tsx`
+  - `superset-frontend/src/dashboard/components/Header/index.tsx`
+  - `superset-frontend/src/dashboard/components/Header/Header.test.tsx`
+  - `superset-frontend/src/features/home/Menu.tsx`
+  - `superset-frontend/src/features/home/Menu.test.tsx`
+  - `superset-frontend/src/views/CRUD/utils.tsx`
+  - `superset-frontend/src/features/home/SubMenu.tsx`
+  - `superset-frontend/src/features/home/RightMenu.tsx`
+  - `superset-frontend/src/dashboard/components/DashboardBuilder/DashboardBuilder.tsx`
+  - `superset-frontend/src/dashboard/components/DashboardBuilder/DashboardBuilder.test.tsx`
+  - `superset-frontend/src/dashboard/components/DashboardBuilder/state.ts`
+  - `superset-frontend/src/dashboard/components/nativeFilters/FilterBar/Horizontal.tsx`
+- **What:** with the `MOBILE_CONSUMPTION_MODE` feature flag on (off by default, as upstream), dashboards are laid out
+  for reading on screens up to the theme's `screenMDMax` (991px): phones, portrait tablets and narrow windows.
+  - **From upstream (#37141, unchanged):**
+    - the `MOBILE_CONSUMPTION_MODE` flag and the `useIsMobile` hook;
+    - a `width=device-width` viewport meta tag, so phones lay the page out at their width, not the legacy 980px;
+    - grid rows stack, and every component takes the full line, with the chart sized to it;
+    - charts are capped to the viewport's height;
+    - chart titles wrap, and chart headers drop their menu and the link to Explore;
+    - the dashboard header drops the refresh icon (the menu still refreshes), the published badge, the owner and
+      modified metadata and the edit button, keeping the title, the star and the menu;
+    - the dashboard header and filter bar scroll away instead of staying pinned.
+  - **The fork's own:**
+    - a breakpoint of `screenMDMax` instead of upstream's `screenSMMax` (767px), so portrait tablets get the layout too;
+    - big number charts at most half a row wide on desktop (KPI tiles) are at most 200px tall and share a line: one
+      to a line below `screenSM` (576px, where two would squeeze their titles and numbers), two below `screenMD`
+      (768px), three up to the breakpoint;
+    - charts are capped to the height the viewport had at its current width, so a phone's address bar showing and
+      hiding while scrolling does not resize them and move the page (upstream re-measures on every resize);
+    - the filter bar is left out when the dashboard has no filters (an editor saw an empty bar), and its Apply and
+      Clear All buttons move to their own line when the filters need the room;
+    - the navigation's create (+) and theme menus are left out, so the bar fits one row with Settings;
+    - markdown blocks size to their text instead of their authored height, which cuts the text off or leaves empty
+      space once it wraps at another width;
+    - the main navigation stays one row, folding the items that don't fit into the menu's overflow (…), instead of
+      stacking them down the screen;
+    - the home page's cards drop the desktop side padding that pushes them off a phone, and fill the width; its tab
+      rows (Favorite / Mine / All) stay one row, like the main navigation, instead of turning into a list.
+  - **Left out of the backport:**
+    - the route guard that shows other views as not supported on phones;
+    - the navigation drawer;
+    - the filter drawer and the card layout of the list views;
+    - the home page changes, docs and Playwright suites.
+
+  Edit mode, report and thumbnail renders (which use a desktop-sized window) and every width above the breakpoint
+  stay as upstream.
+- **Why:** with the flag off, a phone shows the desktop layout shrunk to fit, and a narrow window squeezes each row's
+  charts into slivers.
+- **Remove when:** the base is 7.0 or later. Then upstream's flag brings the rest of #37141 with it, including the route
+  guard; the fork's additions (breakpoint, KPI tiles, markdown height, one-row navigation) are re-applied or dropped
+  against upstream's version.
+
+### D09 — Home page placeholders the size of what they stand for
+
+- **Since:** 2026-11-09
+- **Kind:** fix
+- **Upstream:** not proposed
+- **Files:**
+  - `superset-frontend/packages/superset-ui-core/src/components/ListViewCard/index.tsx`
+  - `superset-frontend/packages/superset-ui-core/src/components/ListViewCard/ListViewCard.test.tsx`
+  - `superset-frontend/src/features/home/SubMenu.tsx`
+  - `superset-frontend/src/features/home/SubMenu.test.tsx`
+  - `superset-frontend/src/features/home/ActivityTable.tsx`
+  - `superset-frontend/src/pages/Home/index.tsx`
+  - `superset-frontend/src/pages/Home/Home.test.tsx`
+- **What:** while the home page's sections load, they show their tab row (Favorite / Mine / All, or Viewed / Edited /
+  Created, and the section's buttons) and their cards as placeholders the size of the loaded ones, so nothing moves
+  when they load.
+  - **Tab row:** `SubMenu` gains a `loading` mode that keeps the tabs and buttons' size. Upstream showed no tab row
+    while loading, with a margin in its place that did not match.
+  - **Cards:** a loading `ListViewCard` has one title row, as a loaded card does. Upstream's placed the title and its
+    actions on two rows, so the placeholder card was taller than a loaded one and was cut off at the bottom by the card
+    grid's maximum height.
+  - **Measured at 1440px:** before, cards were 121px against 80px, cut by 6px, and loading moved later sections by
+    9 to 20px. After, cards are 80px against 80px, nothing is cut, and the sections line up within 2px. The 2px
+    remain only when a section has fewer cards than fill one row, from the card grid's fixed `max-height`.
+- **Remove when:** upstream sizes its loading placeholders like the loaded content.
+
 ## Repository settings
 
 Settings that live in GitHub rather than in files:

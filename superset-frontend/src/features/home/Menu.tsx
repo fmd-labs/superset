@@ -34,6 +34,7 @@ import {
   MenuObjectProps,
   MenuData,
 } from 'src/types/bootstrapTypes';
+import { useIsMobile } from 'src/hooks/useIsMobile';
 import RightMenu from './RightMenu';
 import { NAVBAR_MENU_POPUP_OFFSET } from './commonMenuData';
 
@@ -199,6 +200,9 @@ export function Menu({
   const screens = useBreakpoint();
   const uiConfig = useUiConfig();
   const theme = useTheme();
+  // On phones the bar stays one row: the menu items that don't fit fold into
+  // the menu's overflow ("…") instead of stacking down the screen.
+  const isMobile = useIsMobile();
 
   enum Paths {
     Explore = '/explore',
@@ -335,8 +339,17 @@ export function Menu({
   };
   return (
     <StyledHeader className="top" id="main-menu" role="navigation">
-      <StyledRow>
-        <StyledCol md={16} xs={24}>
+      <StyledRow wrap={!isMobile}>
+        <StyledCol
+          {...(isMobile ? { flex: 'auto' } : { md: 16, xs: 24 })}
+          css={
+            isMobile &&
+            css`
+              flex-wrap: nowrap;
+              min-width: 0;
+            `
+          }
+        >
           <Tooltip
             id="brand-tooltip"
             placement="bottomLeft"
@@ -351,11 +364,19 @@ export function Menu({
             </StyledBrandText>
           )}
           <StyledMainNav
-            mode={screens.md ? 'horizontal' : 'inline'}
+            mode={screens.md || isMobile ? 'horizontal' : 'inline'}
             data-test="navbar-top"
             className="main-nav"
             selectedKeys={activeTabs}
-            disabledOverflow
+            disabledOverflow={!isMobile}
+            css={
+              isMobile &&
+              css`
+                flex: 1;
+                /* room for the overflow item (…) at the least */
+                min-width: ${theme.sizeUnit * 12}px;
+              `
+            }
             items={menu.map(item => {
               const props = {
                 ...item,
@@ -376,9 +397,9 @@ export function Menu({
             })}
           />
         </StyledCol>
-        <Col md={8} xs={24}>
+        <Col {...(isMobile ? { flex: 'none' } : { md: 8, xs: 24 })}>
           <RightMenu
-            align={screens.md ? 'flex-end' : 'flex-start'}
+            align={screens.md || isMobile ? 'flex-end' : 'flex-start'}
             settings={settings}
             navbarRight={navbarRight}
             isFrontendRoute={isFrontendRoute}

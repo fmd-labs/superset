@@ -34,6 +34,7 @@ import type {
   ListViewFilterValue as FilterValue,
 } from 'src/components';
 import SupersetText from 'src/utils/textUtils';
+import { isMobileConsumptionEnabled } from 'src/hooks/useIsMobile';
 import { findPermission } from 'src/utils/findPermission';
 import { User } from 'src/types/bootstrapTypes';
 import { RecentActivity, WelcomeTable } from 'src/features/home/types';
@@ -434,6 +435,17 @@ export const CardContainer = styled.div<{
         ? `${theme.sizeUnit * 8 + 3}px ${theme.sizeUnit * 20}px`
         : `${theme.sizeUnit * 8 + 1}px ${theme.sizeUnit * 20}px`
     };
+    ${
+      // Mobile consumption mode: cards fill the screen's width instead of
+      // keeping the desktop side padding, which pushes them off a phone.
+      isMobileConsumptionEnabled()
+        ? `@media (max-width: ${theme.screenMDMax}px) {
+      padding-left: ${theme.sizeUnit * 4}px;
+      padding-right: ${theme.sizeUnit * 4}px;
+      grid-template-columns: repeat(auto-fill, minmax(${theme.sizeUnit * 65}px, 1fr));
+    }`
+        : ''
+    }
   `}
 `;
 

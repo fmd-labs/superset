@@ -31,6 +31,7 @@ import { useChartsVerboseMaps, getFilterBarTestId } from './utils';
 import { HorizontalBarProps } from './types';
 import FilterBarSettings from './FilterBarSettings';
 import crossFiltersSelector from './CrossFilters/selectors';
+import { isMobileConsumptionEnabled } from 'src/hooks/useIsMobile';
 
 const HorizontalBar = styled.div`
   ${({ theme }) => `
@@ -52,6 +53,20 @@ const HorizontalBarContent = styled.div`
     .loading {
       margin: ${theme.sizeUnit * 2}px auto ${theme.sizeUnit * 2}px;
       padding: 0;
+    }
+    ${
+      // Mobile consumption mode: on a narrow phone the Apply and Clear All
+      // buttons move to a line of their own instead of covering the filters.
+      isMobileConsumptionEnabled()
+        ? `@media (max-width: ${theme.screenMDMax}px) {
+      flex-wrap: wrap;
+      row-gap: ${theme.sizeUnit * 2}px;
+
+      & > div:not([data-test='filterbar-action-buttons']) {
+        min-width: min-content;
+      }
+    }`
+        : ''
     }
   `}
 `;

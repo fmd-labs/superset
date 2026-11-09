@@ -57,6 +57,7 @@ import {
 } from 'src/dashboard/util/constants';
 import FilterBar from 'src/dashboard/components/nativeFilters/FilterBar';
 import { useUiConfig } from 'src/components/UiConfigContext';
+import { isMobileConsumptionEnabled, useIsMobile } from 'src/hooks/useIsMobile';
 import ResizableSidebar from 'src/components/ResizableSidebar';
 import {
   BUILDER_SIDEPANEL_WIDTH,
@@ -98,6 +99,15 @@ const StyledHeader = styled.div<{ filterBarWidth: number }>`
     top: 0;
     z-index: 99;
     max-width: calc(100vw - ${filterBarWidth}px);
+
+    /* Mobile consumption mode: the header and filter bar scroll away, so a
+       phone's screen goes to the charts (from upstream #37141). */
+    ${isMobileConsumptionEnabled() &&
+    css`
+      @media (max-width: ${theme.screenMDMax}px) {
+        position: relative;
+      }
+    `}
 
     .empty-droptarget:before {
       position: absolute;
@@ -449,13 +459,18 @@ const DashboardBuilder = () => {
     dashboardFiltersOpen,
     toggleDashboardFiltersOpen,
     nativeFiltersEnabled,
+    hasFilters,
   } = useNativeFilters();
 
   const [containerRef, isSticky] = useElementOnScreen<HTMLDivElement>(
     ELEMENT_ON_SCREEN_OPTIONS,
   );
 
-  const showFilterBar = !editMode && nativeFiltersEnabled;
+  // Mobile consumption mode shows no filter bar when there is no filter to
+  // use: an editor's empty bar would take a line of a phone's screen.
+  const isMobile = useIsMobile();
+  const showFilterBar =
+    !editMode && nativeFiltersEnabled && (!isMobile || hasFilters);
 
   const offset =
     FILTER_BAR_HEADER_HEIGHT +
@@ -469,17 +484,12 @@ const DashboardBuilder = () => {
       marginLeft:
         dashboardFiltersOpen ||
         editMode ||
-        !nativeFiltersEnabled ||
+        !showFilterBar ||
         filterBarOrientation === FilterBarOrientation.Horizontal
           ? 0
           : -32,
     }),
-    [
-      dashboardFiltersOpen,
-      editMode,
-      filterBarOrientation,
-      nativeFiltersEnabled,
-    ],
+    [dashboardFiltersOpen, editMode, filterBarOrientation, showFilterBar],
   );
 
   // If a new tab was added, update the directPathToChild to reflect it

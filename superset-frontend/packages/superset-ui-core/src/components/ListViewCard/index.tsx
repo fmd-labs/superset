@@ -130,8 +130,25 @@ const ThinSkeleton = styled(Skeleton)`
   }
 
   ul {
-    margin-bottom: 0;
+    margin: 0;
   }
+`;
+
+/* The skeleton takes the loaded card's shape: one title row and one line of
+   description, each as tall as its line of text, so the card neither grows
+   past a loaded card (and gets cut off by the card grid's max-height) nor
+   changes height when it loads. */
+const SkeletonTitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  height: ${({ theme }) => theme.fontSizeLG * theme.lineHeight}px;
+`;
+
+const SKELETON_PARAGRAPH_HEIGHT = 16; // antd's skeleton paragraph line
+
+const SkeletonDescription = styled.div`
+  padding-block: ${({ theme }) =>
+    (theme.fontSize * theme.lineHeight - SKELETON_PARAGRAPH_HEIGHT) / 2}px;
 `;
 
 const paragraphConfig = { rows: 1, width: 150 };
@@ -194,34 +211,37 @@ function ListViewCard({
         <Card.Meta
           data-test="skeleton-card"
           title={
-            <>
-              <TitleContainer>
+            <TitleContainer>
+              <SkeletonTitleRow>
                 <Skeleton.Input
                   active
                   size="small"
                   css={{
-                    width: Math.trunc(theme.sizeUnit * 62.5),
+                    width: Math.trunc(theme.sizeUnit * 50),
                   }}
                 />
                 <div className="card-actions">
-                  <Skeleton.Button active shape="circle" />{' '}
+                  <Skeleton.Button active size="small" shape="circle" />{' '}
                   <Skeleton.Button
                     active
+                    size="small"
                     css={{
                       width: theme.sizeUnit * 10,
                     }}
                   />
                 </div>
-              </TitleContainer>
-            </>
+              </SkeletonTitleRow>
+            </TitleContainer>
           }
           description={
-            <ThinSkeleton
-              round
-              active
-              title={false}
-              paragraph={paragraphConfig}
-            />
+            <SkeletonDescription>
+              <ThinSkeleton
+                round
+                active
+                title={false}
+                paragraph={paragraphConfig}
+              />
+            </SkeletonDescription>
           }
         />
       )}

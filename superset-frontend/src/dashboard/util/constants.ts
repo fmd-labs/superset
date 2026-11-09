@@ -43,6 +43,14 @@ export const GRID_MIN_ROW_UNITS = 5;
 export const GRID_MAX_ROW_UNITS = 100;
 export const GRID_MIN_ROW_HEIGHT = GRID_GUTTER_SIZE;
 export const GRID_DEFAULT_CHART_WIDTH = 4;
+// Mobile consumption mode: a KPI tile (a big number) of a row, at most half a
+// row wide on desktop, is at most this many grid units tall and shares its line
+// with other tiles (see useMobileTilesPerLine), instead of filling a line at
+// its desktop height. The class, suffixed with the tiles per line, sizes it.
+export const MOBILE_TILE_VIZ_TYPES = ['big_number', 'big_number_total'];
+export const MOBILE_TILE_MAX_COLUMNS = GRID_COLUMN_COUNT / 2;
+export const MOBILE_TILE_MAX_ROW_UNITS = 25;
+export const MOBILE_TILE_CLASS = 'dashboard-component--mobile-tile';
 
 // Header types
 export const SMALL_HEADER = 'SMALL_HEADER';

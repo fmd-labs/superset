@@ -58,6 +58,7 @@ import DatabaseModal from 'src/features/databases/DatabaseModal';
 import UploadDataModal from 'src/features/databases/UploadDataModel';
 import { uploadUserPerms } from 'src/views/CRUD/utils';
 import { useThemeContext } from 'src/theme/ThemeProvider';
+import { useIsMobile } from 'src/hooks/useIsMobile';
 import { useThemeMenuItems } from 'src/hooks/useThemeMenuItems';
 import { useLanguageMenuItems } from './LanguagePicker';
 import {
@@ -119,6 +120,9 @@ const RightMenu = ({
   }) => void;
 }) => {
   const theme = useTheme();
+  // Mobile consumption mode: no creating from a phone, and the theme follows
+  // the device; Settings stays, so the navigation bar fits one row.
+  const isMobile = useIsMobile();
   const user = useSelector<any, UserWithPermissionsAndRoles>(
     state => state.user,
   );
@@ -576,7 +580,7 @@ const RightMenu = ({
       });
     }
 
-    if (!navbarRight.user_is_anonymous && showActionDropdown) {
+    if (!navbarRight.user_is_anonymous && showActionDropdown && !isMobile) {
       items.push({
         key: 'new-dropdown',
         label: <Icons.PlusOutlined data-test="new-dropdown-icon" />,
@@ -587,7 +591,7 @@ const RightMenu = ({
       });
     }
 
-    if (canSetMode()) {
+    if (canSetMode() && !isMobile) {
       items.push(themeMenuItem);
     }
 
@@ -609,6 +613,7 @@ const RightMenu = ({
     RightMenuExtension,
     navbarRight,
     showActionDropdown,
+    isMobile,
     canSetMode,
     theme.colorPrimary,
     themeMenuItem,

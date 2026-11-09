@@ -31,6 +31,7 @@ import { debounce } from 'lodash';
 import { Menu, MenuMode, MainNav } from '@superset-ui/core/components/Menu';
 import {
   Button,
+  Skeleton,
   Tooltip,
   Row,
   type OnClickHandler,
@@ -39,6 +40,7 @@ import { Icons } from '@superset-ui/core/components/Icons';
 import { IconType } from '@superset-ui/core/components/Icons/types';
 import { MenuObjectProps } from 'src/types/bootstrapTypes';
 import { Typography } from '@superset-ui/core/components/Typography';
+import { useIsMobile } from 'src/hooks/useIsMobile';
 
 const StyledHeader = styled.div<{ backgroundColor?: string }>`
   background-color: ${({ theme, backgroundColor }) =>
@@ -164,7 +166,24 @@ export interface SubMenuProps {
   color?: string;
   dropDownLinks?: Array<MenuObjectProps>;
   backgroundColor?: string;
+  /** Show placeholders in place of the tabs' labels and the buttons, keeping their size. */
+  loading?: boolean;
 }
+
+// As tall as a tab's line of text, so the tab row keeps its loaded height.
+const SkeletonTabLabel = styled.span`
+  ${({ theme }) => css`
+    display: inline-block;
+    vertical-align: middle;
+    line-height: 0;
+
+    &&& .ant-skeleton-input {
+      width: ${theme.sizeUnit * 10}px;
+      min-width: 0;
+      height: ${theme.fontSize * theme.lineHeight}px;
+    }
+  `}
+`;
 
 const { SubMenu } = MainNav;
 
@@ -172,6 +191,9 @@ const SubMenuComponent: FunctionComponent<SubMenuProps> = props => {
   const [showMenu, setMenu] = useState<MenuMode>('horizontal');
   const [navRightStyle, setNavRightStyle] = useState('nav-right');
   const theme = useTheme();
+  // Mobile consumption mode keeps the tabs on one row, folding the ones that
+  // don't fit into the menu's overflow, instead of a list down the screen.
+  const isMobile = useIsMobile();
 
   let hasHistory = true;
   // If no parent <Router> component exists, useHistory throws an error
@@ -213,10 +235,21 @@ const SubMenuComponent: FunctionComponent<SubMenuProps> = props => {
       <Row className="menu" role="navigation">
         {props.name && <div className="header">{props.name}</div>}
         <Menu
-          mode={showMenu}
-          disabledOverflow
+          mode={isMobile ? 'horizontal' : showMenu}
+          disabledOverflow={!isMobile}
           role="tablist"
           items={props.tabs?.map(tab => {
+            if (props.loading) {
+              return {
+                key: tab.label,
+                disabled: true,
+                label: (
+                  <SkeletonTabLabel>
+                    <Skeleton.Input active size="small" />
+                  </SkeletonTabLabel>
+                ),
+              };
+            }
             if ((props.usesRouter || hasHistory) && !!tab.usesRouter) {
               return {
                 key: tab.label,
@@ -300,18 +333,22 @@ const SubMenuComponent: FunctionComponent<SubMenuProps> = props => {
               </SubMenu>
             ))}
           </Menu>
-          {props.buttons?.map((btn, i) => (
-            <Button
-              key={i}
-              buttonStyle={btn.buttonStyle}
-              icon={btn.icon}
-              onClick={btn.onClick}
-              data-test={btn['data-test']}
-              loading={btn.loading ?? false}
-            >
-              {btn.name}
-            </Button>
-          ))}
+          {props.buttons?.map((btn, i) =>
+            props.loading ? (
+              <Skeleton.Button key={i} active />
+            ) : (
+              <Button
+                key={i}
+                buttonStyle={btn.buttonStyle}
+                icon={btn.icon}
+                onClick={btn.onClick}
+                data-test={btn['data-test']}
+                loading={btn.loading ?? false}
+              >
+                {btn.name}
+              </Button>
+            ),
+          )}
         </div>
       </Row>
       {props.children}
