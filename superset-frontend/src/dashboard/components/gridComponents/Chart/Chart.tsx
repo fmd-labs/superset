@@ -27,6 +27,10 @@ import {
   RefObject,
 } from 'react';
 import type { ChartCustomization, JsonObject } from '@superset-ui/core';
+import {
+  applyTimeGrainSwitch,
+  SELECTED_TIME_GRAIN_KEY,
+} from '@superset-ui/chart-controls';
 import { styled } from '@apache-superset/core/theme';
 import { t } from '@apache-superset/core/translation';
 import { debounce } from 'lodash';
@@ -434,7 +438,7 @@ const Chart = (props: ChartProps) => {
     ),
   );
 
-  const formData = useMemo(
+  const formDataWithFilters = useMemo(
     () =>
       getFormDataWithExtraFilters({
         chart: { id: chart?.id ?? props.id, form_data: chart?.form_data }, // avoid passing the whole chart object
@@ -475,6 +479,19 @@ const Chart = (props: ChartProps) => {
       ownColorScheme,
     ],
   );
+
+  // A viewer's time grain choice (the chart header's switch) applies on top
+  // of the dashboard's filters.
+  const selectedTimeGrain = dataMaskOwnState?.[SELECTED_TIME_GRAIN_KEY];
+  const timeGrainSwitch = useMemo(
+    () =>
+      applyTimeGrainSwitch(
+        formDataWithFilters as JsonObject,
+        selectedTimeGrain,
+      ),
+    [formDataWithFilters, selectedTimeGrain],
+  );
+  const { formData } = timeGrainSwitch;
 
   (formData as JsonObject).dashboardId = dashboardInfo.id;
 
@@ -698,6 +715,7 @@ const Chart = (props: ChartProps) => {
         height={getHeaderHeight()}
         exportPivotExcel={exportPivotExcel as unknown as (arg0: string) => void}
         chartHolderRef={props.chartHolderRef}
+        timeGrainSwitch={timeGrainSwitch.state}
       />
 
       {/*

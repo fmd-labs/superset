@@ -208,6 +208,44 @@ const time_grain_sqla: SharedControlConfig<'SelectControl'> = {
   sortComparator: () => 0, // Disable frontend sorting to preserve backend order
 };
 
+const time_grain_options: SharedControlConfig<'SelectControl'> = {
+  type: 'SelectControl',
+  multi: true,
+  label: t('Viewer time grains'),
+  placeholder: t('None'),
+  default: [],
+  description: t(
+    'Time grains a dashboard viewer can switch this chart to from its ' +
+      'header, without editing it. The time grain above stays the default. ' +
+      'Leave empty to show no switch.',
+  ),
+  mapStateToProps: ({ datasource }) => ({
+    choices: (datasource as Dataset)?.time_grain_sqla || [],
+  }),
+  visibility: displayTimeRelatedControls,
+  sortComparator: () => 0, // Disable frontend sorting to preserve backend order
+};
+
+const time_grain_periods: SharedControlConfig<'TimeGrainPeriodsControl'> = {
+  type: 'TimeGrainPeriodsControl',
+  label: t('Periods per viewer time grain'),
+  default: {},
+  description: t(
+    'How many periods the chart shows when a viewer switches to a grain, ' +
+      'the current one included: 12 shows the last 12 weeks. A grain left ' +
+      "empty keeps the chart's time range. Applies through the chart's time " +
+      'range filter; a dashboard time range filter takes precedence.',
+  ),
+  mapStateToProps: ({ controls, datasource }) => ({
+    grains: controls?.time_grain_options?.value,
+    defaultGrain: controls?.time_grain_sqla?.value,
+    choices: (datasource as Dataset)?.time_grain_sqla || [],
+  }),
+  visibility: props =>
+    displayTimeRelatedControls(props) &&
+    ensureIsArray(props.controls?.time_grain_options?.value).length > 0,
+};
+
 const time_range: SharedControlConfig<'DateFilterControl'> = {
   type: 'DateFilterControl',
   freeForm: true,
@@ -483,6 +521,8 @@ const sharedControls: Record<string, SharedControlConfig<any>> = {
   granularity,
   granularity_sqla: dndGranularitySqlaControl,
   time_grain_sqla,
+  time_grain_options,
+  time_grain_periods,
   time_range,
   row_limit,
   limit,

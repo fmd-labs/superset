@@ -52,3 +52,19 @@ describe('extractUrlParams', () => {
     });
   });
 });
+
+test('keeps time grain choices out of the regular urlParams', () => {
+  const location = window.location;
+  // @ts-expect-error
+  delete window.location;
+  // @ts-expect-error
+  window.location = { search: '?abc=123&chart_time_grains=279:P1W' };
+  try {
+    expect(extractUrlParams('regular')).toEqual({ abc: '123' });
+    expect(extractUrlParams('reserved')).toEqual({
+      chart_time_grains: '279:P1W',
+    });
+  } finally {
+    window.location = location;
+  }
+});

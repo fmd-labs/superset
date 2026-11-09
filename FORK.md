@@ -197,6 +197,64 @@ It skips HTML comments and fenced code blocks.
     (`74c4ac868`, apache/superset#42113): the Homebrew step fails on current runners.
 - **Remove when:** never (fork-only). The backport goes when the base contains it (6.1.1 or later).
 
+### D05 — Viewer time grain switch on dashboard charts
+
+- **Since:** 2026-11-09
+- **Kind:** feature
+- **Upstream:** not proposed
+- **Files:**
+  - `superset-frontend/packages/superset-ui-chart-controls/src/utils/timeGrainSwitch.ts`
+  - `superset-frontend/packages/superset-ui-chart-controls/src/utils/index.ts`
+  - `superset-frontend/packages/superset-ui-chart-controls/src/shared-controls/sharedControls.tsx`
+  - `superset-frontend/packages/superset-ui-chart-controls/src/shared-controls/components/TimeGrainPeriodsControl.tsx`
+  - `superset-frontend/packages/superset-ui-chart-controls/src/shared-controls/components/index.tsx`
+  - `superset-frontend/packages/superset-ui-chart-controls/src/sections/echartsTimeSeriesQuery.tsx`
+  - `superset-frontend/packages/superset-ui-chart-controls/test/utils/timeGrainSwitch.test.ts`
+  - `superset-frontend/packages/superset-ui-chart-controls/test/shared-controls/components/TimeGrainPeriodsControl.test.tsx`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/MixedTimeseries/controlPanel.tsx`
+  - `superset-frontend/src/dashboard/components/SliceHeader/TimeGrainSwitch.tsx`
+  - `superset-frontend/src/dashboard/components/SliceHeader/TimeGrainSwitch.test.tsx`
+  - `superset-frontend/src/dashboard/components/SliceHeader/index.tsx`
+  - `superset-frontend/src/dashboard/components/gridComponents/Chart/Chart.tsx`
+  - `superset-frontend/src/dashboard/components/gridComponents/Chart/Chart.test.tsx`
+  - `superset-frontend/src/dashboard/actions/chartTimeGrains.ts`
+  - `superset-frontend/src/dashboard/actions/chartTimeGrains.test.ts`
+  - `superset-frontend/src/dashboard/util/charts/timeGrainSwitchUrl.ts`
+  - `superset-frontend/src/dashboard/util/charts/timeGrainSwitchUrl.test.ts`
+  - `superset-frontend/src/dashboard/util/extractUrlParams.ts`
+  - `superset-frontend/src/dashboard/util/extractUrlParams.test.ts`
+  - `superset-frontend/src/dashboard/containers/DashboardPage.tsx`
+  - `superset-frontend/src/logger/LogUtils.ts`
+- **What:** a chart can offer dashboard viewers a choice of time grains in its header, without anyone editing the
+  chart. Upstream applies a time grain to a dashboard only through a filter in the filter bar, for every chart in its
+  scope.
+  - **Authoring:** two controls under **Time grain** in the ECharts time series charts (line, bar, area, scatter,
+    smooth line, step) and the mixed time series chart. **Viewer time grains** (`time_grain_options`) lists the grains
+    a viewer can switch to, from the dataset's own (any the database offers, `TIME_GRAIN_ADDONS` included); empty, the
+    default, shows no switch. **Periods per viewer time grain** (`time_grain_periods`) sets how many periods of each of
+    them the chart shows, the current one included: 12 for the week shows the last 12 weeks. The chart's own time
+    grain and its time range stay the default.
+  - **Viewing:** the header shows one button per grain (D, W, 2W, M, Q, …, with the grain's name and its span as
+    tooltip), or a dropdown when the chart is narrow, and the dates the chart covers when there is room. A choice
+    re-runs that chart only: it is kept in the chart's own state on the dashboard (`ownState.selectedTimeGrain`), which
+    upstream's dashboard already re-queries a chart for, and choosing the default grain clears it.
+  - **Query:** the chosen grain replaces the chart's grain, a dashboard time grain filter's included, and the grain an
+    adhoc x-axis carries, so the query and the axis formatting agree. When periods are configured for it, the chart's
+    time range becomes those periods (`DATETRUNC`/`DATEADD` on the server's today; multi-unit grains are aligned to
+    Monday 1970-01-05 for weeks and to 1970-01-01 otherwise, as their SQL is, so `P3M` covers calendar quarters),
+    through the chart's own time range filter: a chart without one keeps its window. A dashboard time range filter
+    that applies to the chart keeps precedence over the periods.
+  - **Sharing:** choices are kept in the dashboard URL (`chart_time_grains=<chart id>:<grain>,…`), applied before the
+    charts first query; a permalink keeps them, as it keeps the dashboard's URL parameters. The parameter is reserved,
+    so it does not reach the charts' `url_params` (which would change their cache keys). Exports from the chart menu
+    use the grain on screen.
+  - The `change_dashboard_chart_time_grain` log event records each choice.
+- **Why:** with a fixed grain per chart, a dashboard needs a daily and a weekly copy of a chart, or a grain filter
+  that changes every chart at once.
+- **Known limits:** reports, alerts and thumbnails render the chart's default grain. Opening the chart in Explore from
+  the dashboard shows the saved grain.
+- **Remove when:** upstream ships a per-chart time grain choice for dashboard viewers.
+
 ## Repository settings
 
 Settings that live in GitHub rather than in files:
@@ -318,4 +376,7 @@ Divergence-specific caveats are listed under **Rollback notes**.
 
 ## Rollback notes
 
-None yet.
+- **D05:** an upstream image ignores `time_grain_options` and `time_grain_periods`: charts show their default grain
+  and no switch, and `chart_time_grains` in a URL does nothing (it then reaches the charts' `url_params`, as any other
+  parameter). A chart saved in an upstream image's Explore loses both keys, since Explore saves only the controls it
+  knows.
