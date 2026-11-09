@@ -30,6 +30,7 @@ import { Radio, RawAntdSelect, Tooltip } from '@superset-ui/core/components';
 import { setChartTimeGrain } from 'src/dashboard/actions/chartTimeGrains';
 import { replaceChartTimeGrainInUrl } from 'src/dashboard/util/charts/timeGrainSwitchUrl';
 import { logEvent } from 'src/logger/actions';
+import getBootstrapData from 'src/utils/getBootstrapData';
 import { LOG_ACTIONS_CHANGE_CHART_TIME_GRAIN } from 'src/logger/LogUtils';
 import type { RootState } from 'src/dashboard/types';
 
@@ -71,6 +72,11 @@ export function describePeriods(grain: string, periods: number): string {
 
 const DAY_MS = 86400 * 1000;
 
+/** Superset's UI language as a BCP 47 tag (`pt_BR` → `pt-BR`), like its other labels. */
+function appLocale(): string | undefined {
+  return getBootstrapData().common?.locale?.replace('_', '-');
+}
+
 /**
  * The dates a query covered, from its `from_dttm` and (exclusive) `to_dttm`,
  * both naive UTC timestamps: "Aug 18 – Nov 9", with years when they differ
@@ -80,6 +86,7 @@ export function formatQueryRange(
   from: number | null | undefined,
   to: number | null | undefined,
   now: Date = new Date(),
+  locale: string | undefined = appLocale(),
 ): string | undefined {
   if (typeof from !== 'number' || typeof to !== 'number' || to <= from) {
     return undefined;
@@ -90,12 +97,18 @@ export function formatQueryRange(
   const showYear =
     new Date(from).getUTCFullYear() !== year ||
     new Date(last).getUTCFullYear() !== year;
-  const format = new Intl.DateTimeFormat(undefined, {
+  const options: Intl.DateTimeFormatOptions = {
     month: 'short',
     day: 'numeric',
     ...(showYear && { year: 'numeric' }),
     timeZone: 'UTC',
-  });
+  };
+  let format: Intl.DateTimeFormat;
+  try {
+    format = new Intl.DateTimeFormat(locale, options);
+  } catch {
+    format = new Intl.DateTimeFormat(undefined, options);
+  }
   return `${format.format(from)} – ${format.format(last)}`;
 }
 

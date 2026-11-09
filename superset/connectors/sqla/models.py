@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import builtins
+import enum
 import logging
 from collections import defaultdict
 from collections.abc import Hashable
@@ -1457,7 +1458,16 @@ class SqlaTable(
 
     @property
     def time_grain_sqla(self) -> list[tuple[Any, Any]]:
-        return [(g.duration, g.name) for g in self.database.grains() or []]
+        # A grain's duration can be a `TimeGrain` member, whose `str()` is
+        # "TimeGrain.DAY", not its ISO 8601 duration: marshmallow's `Str` field (the
+        # dashboard datasets API) would write that. Give every duration as its value.
+        return [
+            (
+                g.duration.value if isinstance(g.duration, enum.Enum) else g.duration,
+                g.name,
+            )
+            for g in self.database.grains() or []
+        ]
 
     @property
     def data(self) -> ExplorableData:

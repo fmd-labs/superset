@@ -179,3 +179,11 @@ test('getXAxisFormatter without time grain should use standard smart date behavi
 
   expect(standardResult).toBe(timeGrainResult);
 });
+
+test('getXAxisFormatter sets dates of a day or longer grain without a branch of its own to midnight', () => {
+  const formatter = getXAxisFormatter(SMART_DATE_ID, 'P2W') as TimeFormatter;
+  const midnight = new Date(Date.UTC(2026, 10, 9, 0, 0, 0));
+  const offMidnight = new Date(Date.UTC(2026, 10, 9, 13, 27, 40));
+  expect(formatter.format(offMidnight)).toBe(formatter.format(midnight));
+  expect(formatter.format(offMidnight)).not.toMatch(/\d+s$/);
+});

@@ -235,13 +235,15 @@ It skips HTML comments and fenced code blocks.
     them the chart shows, the current one included: 12 for the week shows the last 12 weeks. The chart's own time
     grain and its time range stay the default.
   - **Viewing:** the header shows one button per grain (D, W, 2W, M, Q, …, with the grain's name and its span as
-    tooltip), or a dropdown when the chart is narrow, and the dates the chart covers when there is room. A choice
+    tooltip), or a dropdown when the chart is narrow, and the dates the chart covers when there is room (in Superset's
+    UI language). A choice
     re-runs that chart only: it is kept in the chart's own state on the dashboard (`ownState.selectedTimeGrain`), which
     upstream's dashboard already re-queries a chart for, and choosing the default grain clears it.
   - **Query:** the chosen grain replaces the chart's grain, a dashboard time grain filter's included, and the grain an
     adhoc x-axis carries, so the query and the axis formatting agree. When periods are configured for it, the chart's
-    time range becomes those periods (`DATETRUNC`/`DATEADD` on the server's today; multi-unit grains are aligned to
-    Monday 1970-01-05 for weeks and to 1970-01-01 otherwise, as their SQL is, so `P3M` covers calendar quarters),
+    time range becomes those periods, through the end of the current day (`DATETRUNC`/`DATEADD` on the server's today;
+    a range ending "now" would leave today out of a date column; multi-unit grains are aligned to Monday 1970-01-05 for
+    weeks and to 1970-01-01 otherwise, as their SQL is, so `P3M` covers calendar quarters),
     through the chart's own time range filter: a chart without one keeps its window. A dashboard time range filter
     that applies to the chart keeps precedence over the periods.
   - **Sharing:** choices are kept in the dashboard URL (`chart_time_grains=<chart id>:<grain>,…`), applied before the
@@ -254,6 +256,33 @@ It skips HTML comments and fenced code blocks.
 - **Known limits:** reports, alerts and thumbnails render the chart's default grain. Opening the chart in Explore from
   the dashboard shows the saved grain.
 - **Remove when:** upstream ships a per-chart time grain choice for dashboard viewers.
+
+### D06 — Dashboard datasets list their time grains by duration
+
+- **Since:** 2026-11-09
+- **Kind:** fix
+- **Upstream:** not proposed
+- **Files:**
+  - `superset/connectors/sqla/models.py`
+  - `tests/unit_tests/connectors/sqla/models_test.py`
+- **What:** `SqlaTable.time_grain_sqla` gives each grain's ISO 8601 duration as a plain string. Engines that key their
+  grains by `TimeGrain` member (PostgreSQL among them) gave the member, which the dashboard datasets API
+  (`/api/v1/dashboard/<id>/datasets`, a marshmallow `Str` field) wrote as `"TimeGrain.DAY"` instead of `"P1D"`; the
+  dataset and Explore APIs, which write JSON, were not affected. D05 names the grains from that list.
+- **Remove when:** upstream writes the durations in the dashboard datasets API.
+
+### D07 — Axis labels of added day-or-longer grains
+
+- **Since:** 2026-11-09
+- **Kind:** fix
+- **Upstream:** not proposed
+- **Files:**
+  - `superset-frontend/plugins/plugin-chart-echarts/src/utils/formatters.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/test/utils/formatters.test.ts`
+- **What:** the ECharts time axis formatter sets the dates of every day-or-longer grain (`P<n>D`, `P<n>W`, `P<n>M`,
+  `P<n>Y`) without a branch of its own to midnight UTC, as it does for the built-in ones. A grain from
+  `TIME_GRAIN_ADDONS`, such as `P2W`, got ticks labelled with seconds (`:40s`).
+- **Remove when:** upstream formats added grains the same way.
 
 ## Repository settings
 

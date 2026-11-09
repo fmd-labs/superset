@@ -117,48 +117,48 @@ test('getTimeGrainPeriods accepts whole numbers from 1 to 1000 only', () => {
 
 test('getTimeGrainWindow covers the last N buckets, the current one included', () => {
   expect(getTimeGrainWindow('P1D', 30, MONDAY_EVEN)).toBe(
-    'DATEADD(DATETRUNC(DATETIME("today"), day), -29, day) : now',
+    'DATEADD(DATETRUNC(DATETIME("today"), day), -29, day) : DATEADD(DATETIME("today"), 1, day)',
   );
   expect(getTimeGrainWindow('P1W', 12, MONDAY_EVEN)).toBe(
-    'DATEADD(DATETRUNC(DATETIME("today"), week), -11, week) : now',
+    'DATEADD(DATETRUNC(DATETIME("today"), week), -11, week) : DATEADD(DATETIME("today"), 1, day)',
   );
   expect(getTimeGrainWindow('P1M', 12, MONDAY_EVEN)).toBe(
-    'DATEADD(DATETRUNC(DATETIME("today"), month), -11, month) : now',
+    'DATEADD(DATETRUNC(DATETIME("today"), month), -11, month) : DATEADD(DATETIME("today"), 1, day)',
   );
   expect(getTimeGrainWindow('P1M', 1, MONDAY_EVEN)).toBe(
-    'DATETRUNC(DATETIME("today"), month) : now',
+    'DATETRUNC(DATETIME("today"), month) : DATEADD(DATETIME("today"), 1, day)',
   );
   expect(getTimeGrainWindow('P1Y', 3, MONDAY_EVEN)).toBe(
-    'DATEADD(DATETRUNC(DATETIME("today"), year), -2, year) : now',
+    'DATEADD(DATETRUNC(DATETIME("today"), year), -2, year) : DATEADD(DATETIME("today"), 1, day)',
   );
   expect(getTimeGrainWindow('PT1H', 24, MONDAY_EVEN)).toBe(
-    'DATEADD(DATETRUNC(DATETIME("now"), hour), -23, hour) : now',
+    'DATEADD(DATETRUNC(DATETIME("now"), hour), -23, hour) : DATEADD(DATETRUNC(DATETIME("now"), hour), 1, hour)',
   );
 });
 
 test('getTimeGrainWindow aligns multi-week buckets to Monday 1970-01-05', () => {
   expect(getTimeGrainWindow('P2W', 13, MONDAY_EVEN)).toBe(
-    'DATEADD(DATETRUNC(DATETIME("today"), week), -24, week) : now',
+    'DATEADD(DATETRUNC(DATETIME("today"), week), -24, week) : DATEADD(DATETIME("today"), 1, day)',
   );
   expect(getTimeGrainWindow('P2W', 13, MONDAY_ODD)).toBe(
-    'DATEADD(DATETRUNC(DATETIME("today"), week), -25, week) : now',
+    'DATEADD(DATETRUNC(DATETIME("today"), week), -25, week) : DATEADD(DATETIME("today"), 1, day)',
   );
   // Sunday still belongs to the week that started on the Monday before.
   expect(getTimeGrainWindow('P2W', 1, new Date('2026-11-15T23:00:00Z'))).toBe(
-    'DATETRUNC(DATETIME("today"), week) : now',
+    'DATETRUNC(DATETIME("today"), week) : DATEADD(DATETIME("today"), 1, day)',
   );
   expect(getTimeGrainWindow('P2W', 1, MONDAY_ODD)).toBe(
-    'DATEADD(DATETRUNC(DATETIME("today"), week), -1, week) : now',
+    'DATEADD(DATETRUNC(DATETIME("today"), week), -1, week) : DATEADD(DATETIME("today"), 1, day)',
   );
 });
 
 test('getTimeGrainWindow aligns quarters to calendar quarters', () => {
   // November is the second month of Q4, so the current quarter began a month ago.
   expect(getTimeGrainWindow('P3M', 8, MONDAY_EVEN)).toBe(
-    'DATEADD(DATETRUNC(DATETIME("today"), month), -22, month) : now',
+    'DATEADD(DATETRUNC(DATETIME("today"), month), -22, month) : DATEADD(DATETIME("today"), 1, day)',
   );
   expect(getTimeGrainWindow('P3M', 1, new Date('2026-10-01T00:00:00Z'))).toBe(
-    'DATETRUNC(DATETIME("today"), month) : now',
+    'DATETRUNC(DATETIME("today"), month) : DATEADD(DATETIME("today"), 1, day)',
   );
 });
 
@@ -209,7 +209,8 @@ test('applyTimeGrainSwitch applies the chosen grain and its window', () => {
     'P1W',
     MONDAY_EVEN,
   );
-  const window = 'DATEADD(DATETRUNC(DATETIME("today"), week), -11, week) : now';
+  const window =
+    'DATEADD(DATETRUNC(DATETIME("today"), week), -11, week) : DATEADD(DATETIME("today"), 1, day)';
   expect(formData).toEqual({
     ...baseFormData,
     time_grain_sqla: 'P1W',

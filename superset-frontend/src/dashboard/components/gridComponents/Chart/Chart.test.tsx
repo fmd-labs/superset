@@ -505,8 +505,8 @@ test('applies a viewer time grain choice to the chart query', () => {
   const formData = capturedChartContainerProps.formData as Record<string, any>;
   expect(formData.time_grain_sqla).toBe('P1W');
   expect(formData.extra_form_data.time_grain_sqla).toBe('P1W');
-  expect(formData.extra_form_data.time_range).toMatch(
-    /^DATEADD\(DATETRUNC\(DATETIME\("today"\), week\), -11, week\) : now$/,
+  expect(formData.extra_form_data.time_range).toBe(
+    'DATEADD(DATETRUNC(DATETIME("today"), week), -11, week) : DATEADD(DATETIME("today"), 1, day)',
   );
 });
 

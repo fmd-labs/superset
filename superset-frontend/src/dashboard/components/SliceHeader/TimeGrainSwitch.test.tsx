@@ -178,20 +178,33 @@ test('describePeriods names the span the periods cover', () => {
   expect(describePeriods('1969-12-28T00:00:00Z/P1W', 4)).toBe('last 4 periods');
 });
 
+test('formatQueryRange falls back to the browser locale for an unknown tag', () => {
+  expect(
+    formatQueryRange(
+      Date.UTC(2026, 7, 18),
+      Date.UTC(2026, 10, 9),
+      undefined,
+      'not a locale!',
+    ),
+  ).toBeDefined();
+});
+
 test('formatQueryRange shows the covered days, an exclusive midnight end excluded', () => {
   const now = new Date('2026-11-09T12:00:00Z');
   const sameYear = formatQueryRange(
     Date.UTC(2026, 7, 18),
     Date.UTC(2026, 10, 9),
     now,
+    'en',
   );
   const otherYear = formatQueryRange(
     Date.UTC(2025, 10, 1),
     Date.UTC(2026, 10, 9, 8),
     now,
+    'en',
   );
   const format = (date: number, withYear: boolean) =>
-    new Intl.DateTimeFormat(undefined, {
+    new Intl.DateTimeFormat('en', {
       month: 'short',
       day: 'numeric',
       ...(withYear && { year: 'numeric' }),

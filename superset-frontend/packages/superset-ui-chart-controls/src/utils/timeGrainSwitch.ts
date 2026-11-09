@@ -208,6 +208,10 @@ function bucketOffset({ unit, count }: TimeGrainDuration, now: Date): number {
  * The time range that shows the last `periods` buckets of `grain`, the
  * current (possibly partial) one included, in Superset's time range syntax.
  *
+ * It ends after the current day (or hour, minute, second for those grains),
+ * not at "now": a date column compares with the date of the range's end, and
+ * `day < <today>` would leave today, and so the current bucket, out.
+ *
  * The range is evaluated on the server ("today" and "now" in its time zone);
  * the bucket alignment of multi-unit grains assumes that time zone is UTC.
  * Returns `undefined` for grains it cannot reason about.
@@ -229,7 +233,10 @@ export function getTimeGrainWindow(
     : `DATETRUNC(DATETIME("now"), ${unit})`;
   const since =
     unitsBack === 0 ? base : `DATEADD(${base}, -${unitsBack}, ${unit})`;
-  return `${since} : now`;
+  const until = isDateUnit
+    ? 'DATEADD(DATETIME("today"), 1, day)'
+    : `DATEADD(DATETRUNC(DATETIME("now"), ${unit}), 1, ${unit})`;
+  return `${since} : ${until}`;
 }
 
 export interface TimeGrainSwitchState {
