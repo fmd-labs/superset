@@ -446,6 +446,7 @@ audit enforces both), so a workflow added by an upstream release cannot start ru
 | Fork tag       | Upstream base           | Image                                                                                               | Divergences | Notes                                                                          |
 | -------------- | ----------------------- | --------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------ |
 | `6.1.0-fork.1` | `c83fb2b` (tag `6.1.0`) | `ghcr.io/fmd-labs/superset@sha256:ee804ae1665ace84fd043a1b21767435623c2386550e0b62842088369cb78dec` | D01–D07     | First release (#1, #2), of `10b010a`; candidate `sha-10b010a-run.42634390023`. |
+| `6.1.0-fork.2` | `c83fb2b` (tag `6.1.0`) | `ghcr.io/fmd-labs/superset@sha256:b9b4858012f22affc5af6f72510180d215f84c209e9ea3419a35a321b8d46005` | D01–D09     | D08 and D09 (#4), of `f556fe8`; candidate `sha-f556fe8-run.42674289702`.       |
 
 Fork releases are tagged `<upstream version>-fork.<n>`, for example `6.1.0-fork.1`, like upstream's tags without a
 `v`. `<upstream version>` is the upstream tag named in **Base**, and `<n>` counts fork releases on that upstream
