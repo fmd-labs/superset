@@ -19,6 +19,7 @@
 
 import type { EChartsCoreOption } from 'echarts/core';
 import {
+  AnnotationLayer,
   ChartDataResponseResult,
   ContextMenuFilters,
   DataRecordValue,
@@ -52,6 +53,8 @@ export type BigNumberWithTrendlineFormData = BigNumberTotalFormData & {
   showXAxisMinMaxLabels?: boolean;
   showYAxis?: boolean;
   showYAxisMinMaxLabels?: boolean;
+  annotationLayers?: AnnotationLayer[];
+  annotationAxisMarkers?: boolean;
 };
 
 export interface BigNumberTotalChartDataResponseResult extends ChartDataResponseResult {

@@ -59,6 +59,8 @@ export default function buildQuery(formData: QueryFormData) {
     if (formData.aggregation === 'raw') {
       queries.push({
         ...baseQueryObject,
+        // The trend line's query brings the annotations.
+        annotation_layers: [],
         columns: [...(isRawMetric ? [] : timeColumn)],
         is_timeseries: !isRawMetric,
         post_processing: isRawMetric

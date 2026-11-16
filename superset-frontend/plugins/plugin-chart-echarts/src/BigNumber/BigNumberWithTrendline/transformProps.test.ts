@@ -17,7 +17,9 @@
  * under the License.
  */
 import { GenericDataType } from '@apache-superset/core/common';
+import { tooltipHtml } from '@superset-ui/core';
 import transformProps from './transformProps';
+import { getTrendlineAnnotations } from './annotations';
 import { BigNumberWithTrendlineChartProps, BigNumberDatum } from '../types';
 
 // Mock chart-controls to avoid styled-components issues in Jest
@@ -69,6 +71,14 @@ jest.mock('@superset-ui/core', () => ({
   NumberFormats: {
     PERCENT_SIGNED_1_POINT: '.1%',
   },
+}));
+
+jest.mock('./annotations', () => ({
+  getTrendlineAnnotations: jest.fn(() => ({
+    series: [],
+    markerOffset: 0,
+    eventRows: new Map(),
+  })),
 }));
 
 jest.mock('../utils', () => ({
@@ -279,5 +289,55 @@ describe('BigNumberWithTrendline transformProps', () => {
     );
     expect(result.bigNumber).toBe(360);
     expect(result.subheader).toBe('50.0% WoW');
+  });
+
+  test('draws the annotations on the trend line and names the events of the hovered point', () => {
+    const annotationSeries = { id: 'Event - Releases', type: 'line' as const };
+    jest.mocked(getTrendlineAnnotations).mockReturnValueOnce({
+      series: [annotationSeries],
+      markerOffset: 5,
+      eventRows: new Map([[2, [['Pricing', 'Releases']]]]),
+    });
+    const chartProps = {
+      width: 500,
+      height: 400,
+      queriesData: [
+        {
+          data: [
+            { __timestamp: 2, value: 110 },
+            { __timestamp: 1, value: 100 },
+          ] as unknown as BigNumberDatum[],
+          colnames: ['__timestamp', 'value'],
+          coltypes: ['TEMPORAL', 'NUMERIC'],
+        },
+      ],
+      formData: { ...baseFormData, showTrendLine: true },
+      rawFormData: baseRawFormData,
+      hooks: baseHooks,
+      datasource: baseDatasource,
+      theme: { colors: { grayscale: { light5: '#eee' } } },
+    };
+
+    const echartOptions = transformProps(
+      chartProps as unknown as BigNumberWithTrendlineChartProps,
+    ).echartOptions as unknown as {
+      series: unknown[];
+      grid: { bottom: number };
+      tooltip: { formatter: (params: unknown) => string };
+    };
+    expect(getTrendlineAnnotations).toHaveBeenLastCalledWith(
+      expect.objectContaining({ pointTimes: [2, 1] }),
+    );
+    expect(echartOptions.series).toContain(annotationSeries);
+    expect(echartOptions.grid.bottom).toBe(5);
+
+    echartOptions.tooltip.formatter([{ data: [2, 110] }]);
+    expect(jest.mocked(tooltipHtml)).toHaveBeenLastCalledWith(
+      [
+        ['value', '$110'],
+        ['Pricing', 'Releases'],
+      ],
+      '2pm',
+    );
   });
 });

@@ -57,10 +57,14 @@ import {
 } from '../types';
 
 import {
+  ANNOTATION_AXIS_MARKER_SIZE,
+  AnnotationAxisMarkers,
   evalFormula,
   extractRecordAnnotations,
   formatAnnotationLabel,
   parseAnnotationOpacity,
+  parseAnnotationTime,
+  snapAnnotationTime,
 } from '../utils/annotation';
 import { getChartPadding, getTimeCompareStackId } from '../utils/series';
 import {
@@ -587,6 +591,7 @@ export function transformEventAnnotation(
   theme: SupersetTheme,
   sliceId?: number,
   orientation?: OrientationType,
+  axisMarkers?: AnnotationAxisMarkers,
 ): SeriesOption[] {
   const series: SeriesOption[] = [];
   const annotations = extractRecordAnnotations(layer, annotationData);
@@ -597,9 +602,25 @@ export function transformEventAnnotation(
   const { name, color, opacity, style, width, showLabel } = layer;
   const isHorizontal = orientation === OrientationType.Horizontal;
 
-  const eventsByTime = new Map<string, { time: string; labels: string[] }>();
+  const eventsByTime = new Map<
+    string | number,
+    { time: string | number; labels: string[] }
+  >();
   annotations.forEach(annotation => {
-    const { descriptions, time = '', title } = annotation;
+    const { descriptions, title } = annotation;
+    let time: string | number | undefined = annotation.time ?? '';
+    if (axisMarkers) {
+      // Event markers: the event is drawn at the period it falls in, and left
+      // out when it falls outside the periods the chart shows.
+      const parsed = parseAnnotationTime(time);
+      time =
+        parsed === undefined
+          ? undefined
+          : snapAnnotationTime(parsed, axisMarkers);
+      if (time === undefined) {
+        return;
+      }
+    }
     const label = formatAnnotationLabel(name, title, descriptions);
     const existing = eventsByTime.get(time);
 
@@ -609,6 +630,9 @@ export function transformEventAnnotation(
       eventsByTime.set(time, { time, labels: [label] });
     }
   });
+  if (eventsByTime.size === 0) {
+    return series;
+  }
 
   const allEventData: MarkLine1DDataItemOption[] = Array.from(
     eventsByTime.values(),
@@ -659,9 +683,16 @@ export function transformEventAnnotation(
     animation: false,
     markLine: {
       silent: false,
-      symbol: 'none',
+      // With event markers, the line starts with a marker on the time axis,
+      // and the tooltip of its period names the events instead of a label
+      // along the line on hover.
+      symbol: axisMarkers ? ['circle', 'none'] : 'none',
+      ...(axisMarkers && { symbolSize: ANNOTATION_AXIS_MARKER_SIZE }),
       lineStyle,
-      label: eventLabel,
+      label:
+        axisMarkers?.eventsInTooltip && !showLabel
+          ? { show: false }
+          : eventLabel,
       data: allEventData,
     },
   });

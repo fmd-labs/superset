@@ -17,7 +17,7 @@
  * under the License.
  */
 import { t } from '@apache-superset/core/translation';
-import { Behavior } from '@superset-ui/core';
+import { AnnotationType, Behavior } from '@superset-ui/core';
 import controlPanel from './controlPanel';
 import transformProps from './transformProps';
 import buildQuery from './buildQuery';
@@ -50,6 +50,8 @@ const metadata = {
   thumbnail,
   thumbnailDark,
   behaviors: [Behavior.DrillToDetail],
+  // Events and intervals mark the trend line, as on a time-series chart.
+  supportedAnnotationTypes: [AnnotationType.Event, AnnotationType.Interval],
 };
 
 export default class BigNumberWithTrendlineChartPlugin extends EchartsChartPlugin<

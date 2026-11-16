@@ -16,7 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { QueryFormData } from '@superset-ui/core';
+import {
+  AnnotationLayer,
+  AnnotationSourceType,
+  AnnotationStyle,
+  AnnotationType,
+  QueryFormData,
+} from '@superset-ui/core';
 import buildQuery from './buildQuery';
 
 jest.mock('@superset-ui/core', () => ({
@@ -97,5 +103,27 @@ describe('BigNumberWithTrendline buildQuery', () => {
 
     const queryContextSum = buildQuery({ ...baseFormData, aggregation: 'sum' });
     expect(queryContextSum.queries.length).toBe(1);
+  });
+
+  test('requests annotations with the trend line query only', () => {
+    const annotationLayers: AnnotationLayer[] = [
+      {
+        name: 'Releases',
+        annotationType: AnnotationType.Event,
+        sourceType: AnnotationSourceType.Native,
+        style: AnnotationStyle.Dashed,
+        value: 1,
+        show: true,
+        showLabel: false,
+      },
+    ];
+    const queryContext = buildQuery({
+      ...baseFormData,
+      aggregation: 'raw',
+      annotation_layers: annotationLayers,
+    });
+
+    expect(queryContext.queries[0].annotation_layers).toEqual(annotationLayers);
+    expect(queryContext.queries[1].annotation_layers).toEqual([]);
   });
 });

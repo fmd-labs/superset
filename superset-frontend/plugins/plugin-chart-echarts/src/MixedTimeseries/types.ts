@@ -43,6 +43,7 @@ import {
 
 export type EchartsMixedTimeseriesFormData = QueryFormData & {
   annotationLayers: AnnotationLayer[];
+  annotationAxisMarkers?: boolean;
   // shared properties
   minorSplitLine: boolean;
   minorTicks: boolean;

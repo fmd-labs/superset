@@ -17,9 +17,21 @@
  * under the License.
  */
 import { t } from '@apache-superset/core/translation';
+import {
+  AnnotationLayer,
+  AnnotationType,
+  ensureIsArray,
+} from '@superset-ui/core';
 import { ControlPanelSectionConfig } from '../types';
 
 export const annotationLayers = [];
+
+/**
+ * Event markers on the time axis: each event annotation is drawn at the period
+ * of the time axis it falls in, with a marker where it meets the axis. Off by
+ * default, which draws events at their exact time without a marker.
+ */
+export const ANNOTATION_AXIS_MARKERS_KEY = 'annotation_axis_markers';
 
 export const annotationsAndLayersControls: ControlPanelSectionConfig = {
   label: t('Annotations and Layers'),
@@ -35,6 +47,26 @@ export const annotationsAndLayersControls: ControlPanelSectionConfig = {
           default: annotationLayers,
           description: t('Annotation Layers'),
           renderTrigger: false,
+        },
+      },
+    ],
+    [
+      {
+        name: ANNOTATION_AXIS_MARKERS_KEY,
+        config: {
+          type: 'CheckboxControl',
+          label: t('Mark events on the time axis'),
+          default: false,
+          renderTrigger: true,
+          description: t(
+            'Draw each event annotation at the period it falls in (the week that contains it on a weekly chart), with a marker where it meets the time axis. Events outside the periods the chart shows are left out.',
+          ),
+          visibility: ({ controls }) =>
+            ensureIsArray(
+              controls?.annotation_layers?.value as
+                | AnnotationLayer[]
+                | undefined,
+            ).some(layer => layer?.annotationType === AnnotationType.Event),
         },
       },
     ],
