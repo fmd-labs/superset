@@ -398,6 +398,64 @@ It skips HTML comments and fenced code blocks.
     remain only when a section has fewer cards than fill one row, from the card grid's fixed `max-height`.
 - **Remove when:** upstream sizes its loading placeholders like the loaded content.
 
+### D10 — Event markers on the time axis, and annotations on big number trend lines
+
+- **Since:** 2026-11-16
+- **Kind:** feature
+- **Upstream:** not proposed
+- **Files:**
+  - `superset-frontend/packages/superset-ui-chart-controls/src/sections/annotationsAndLayers.tsx`
+  - `superset-frontend/packages/superset-ui-chart-controls/test/sections/annotationsAndLayers.test.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/utils/annotation.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/test/utils/annotationAxisMarkers.test.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/Timeseries/transformers.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/Timeseries/transformProps.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/Timeseries/types.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/test/Timeseries/eventAnnotationMarkers.test.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/MixedTimeseries/transformProps.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/MixedTimeseries/types.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/BigNumber/types.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/BigNumber/BigNumberViz.tsx`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/BigNumber/BigNumberWithTrendline/annotations.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/BigNumber/BigNumberWithTrendline/annotations.test.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/BigNumber/BigNumberWithTrendline/buildQuery.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/BigNumber/BigNumberWithTrendline/buildQuery.test.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/BigNumber/BigNumberWithTrendline/controlPanel.tsx`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/BigNumber/BigNumberWithTrendline/index.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/BigNumber/BigNumberWithTrendline/transformProps.ts`
+  - `superset-frontend/plugins/plugin-chart-echarts/src/BigNumber/BigNumberWithTrendline/transformProps.test.ts`
+- **What:** a dated event, such as a release, can be marked on a chart the way product analytics tools do: a marker
+  on the time axis with the event's line above it, and the event named in the tooltip of its day or week. Upstream
+  draws an event annotation as a vertical line at its exact time, with its label written along the line on hover, and
+  only on the ECharts time-series charts.
+  - **Event markers** (`annotation_axis_markers`, a checkbox **Mark events on the time axis** under **Annotations and
+    Layers**, shown when the chart has an event layer; off by default, which keeps upstream's drawing): on the ECharts
+    time-series charts (line, bar, area, scatter, smooth line, step), the mixed time series chart and the big number
+    with trend line, each event of an event layer is drawn at the point of the period it falls in (the week that
+    contains it on a weekly chart, the day on a daily chart), with a circle where its line meets the time axis. Events
+    of one period share one line. A period lasts one time grain (a dashboard time grain filter's and D05's choice
+    included) from its point, or up to its point for the weeks ending on Saturday or Sunday, whose points are the last
+    day of their week; for a grain that is not a plain duration, the last period is as long as the one before it. An
+    event in a gap of the data is drawn where its period's point would be. Events before the first period or after the
+    last one are left out, which upstream drew outside the plot. When the tooltip is per period (**Rich tooltip**, the
+    default), it lists the events of the hovered period (title and layer name, HTML-escaped) after its values, and the
+    line shows no label on hover; otherwise the line keeps upstream's label on hover. An event layer's **Show label**
+    still writes the label along the line. The style, width, color and opacity of the layer apply to the line and its
+    marker. Only on a time x-axis.
+  - **Big number with trend line:** the chart gains **Annotations and Layers** with event and interval layers,
+    drawn on the trend line as on a time-series chart (events as lines, intervals as shaded areas), and the event
+    markers above. The trend line is too small for a label along a line, so its events never show one; its tooltip
+    lists the events of the hovered period instead, with or without markers. Only the trend line's query requests the
+    annotations (the second query of the raw aggregation does not), and a right-click on an annotation opens no
+    drill-to-detail.
+  - Native annotation layers send every annotation of the layer with each chart query, as upstream does; the periods
+    only decide where they are drawn.
+- **Why:** a release, a price change or a new flow explains a step in a KPI; with upstream, its line sits between the
+  points of a weekly chart or past the end of the axis, is named only by rotated text on hover, and cannot be shown on
+  KPI cards at all.
+- **Remove when:** upstream draws event annotations at their period with an axis marker, and supports annotations on
+  big number trend lines.
+
 ## Repository settings
 
 Settings that live in GitHub rather than in files:
@@ -528,3 +586,7 @@ Divergence-specific caveats are listed under **Rollback notes**.
   and no switch, and `chart_time_grains` in a URL does nothing (it then reaches the charts' `url_params`, as any other
   parameter). A chart saved in an upstream image's Explore loses both keys, since Explore saves only the controls it
   knows.
+- **D10:** an upstream image ignores `annotation_axis_markers`: event annotations are drawn at their exact time, with
+  their label on hover and no marker. Big number trend lines show no annotations; their `annotation_layers` stay in
+  the chart's params (and their query still returns the annotation data) until the chart is saved in an upstream
+  image's Explore, which drops them.

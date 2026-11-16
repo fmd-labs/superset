@@ -365,7 +365,8 @@ function BigNumberVis({
         if (onContextMenu) {
           eventParams.event.stop();
           const { data } = eventParams;
-          if (data) {
+          // Annotation lines and areas carry no point to drill into.
+          if (Array.isArray(data)) {
             const pointerEvent = eventParams.event.event;
             const drillToDetailFilters: BinaryQueryObjectFilterClause[] = [];
             drillToDetailFilters.push({

@@ -53,6 +53,7 @@ export enum EchartsTimeseriesSeriesType {
 
 export type EchartsTimeseriesFormData = QueryFormData & {
   annotationLayers: AnnotationLayer[];
+  annotationAxisMarkers?: boolean;
   area: boolean;
   colorScheme?: string;
   timeShiftColor?: boolean;

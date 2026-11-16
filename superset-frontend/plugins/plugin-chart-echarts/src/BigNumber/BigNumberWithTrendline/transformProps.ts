@@ -30,6 +30,7 @@ import {
 import { GenericDataType } from '@apache-superset/core/common';
 import { EChartsCoreOption, graphic } from 'echarts/core';
 import { aggregationChoices } from '@superset-ui/chart-controls';
+import { getTrendlineAnnotations } from './annotations';
 import { TIMESERIES_CONSTANTS } from '../../constants';
 import { getXAxisFormatter } from '../../utils/formatters';
 import {
@@ -113,6 +114,9 @@ export default function transformProps(
     showXAxisMinMaxLabels = false,
     showYAxis = false,
     showYAxisMinMaxLabels = false,
+    annotationLayers,
+    annotationAxisMarkers,
+    sliceId,
   } = formData;
   const granularity = extractTimegrain(rawFormData);
   const {
@@ -280,6 +284,21 @@ export default function transformProps(
       ? formatTime
       : numberFormatter;
 
+  const {
+    series: annotationSeries,
+    markerOffset,
+    eventRows,
+  } = getTrendlineAnnotations({
+    annotationLayers: trendLineData ? annotationLayers : [],
+    annotationAxisMarkers,
+    annotationData: queriesData[0]?.annotation_data,
+    // The periods of the data, without the ends a fixed time range adds.
+    pointTimes: sortedData.map(([time]) => time),
+    timeGrain: granularity,
+    theme,
+    sliceId,
+  });
+
   const echartOptions: EChartsCoreOption = trendLineData
     ? {
         series: [
@@ -304,6 +323,7 @@ export default function transformProps(
               ]),
             },
           },
+          ...annotationSeries,
         ],
         xAxis: {
           type: 'time',
@@ -344,7 +364,7 @@ export default function transformProps(
                 top: TIMESERIES_CONSTANTS.gridOffsetTop,
               }
             : {
-                bottom: 0,
+                bottom: markerOffset,
                 left: 0,
                 right: 0,
                 top: 0,
@@ -362,6 +382,8 @@ export default function transformProps(
                     ? t('N/A')
                     : yAxisFormatter.format(params[0].data[1]),
                 ],
+                // The events of the hovered period
+                ...(eventRows.get(params[0].data[0]) || []),
               ],
               formatTime(params[0].data[0]),
             ),

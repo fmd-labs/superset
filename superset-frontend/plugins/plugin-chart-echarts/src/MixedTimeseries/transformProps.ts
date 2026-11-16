@@ -25,6 +25,7 @@ import {
   CategoricalColorNamespace,
   CurrencyFormatter,
   ensureIsArray,
+  extractTimegrain,
   getCustomFormatter,
   getNumberFormatter,
   getXAxisLabel,
@@ -77,6 +78,8 @@ import { resolveLegendLayout } from '../utils/legendLayout';
 import {
   extractAnnotationLabels,
   getAnnotationData,
+  getAnnotationPeriods,
+  getPeriodEventRows,
 } from '../utils/annotation';
 import {
   extractForecastSeriesContext,
@@ -161,6 +164,7 @@ export default function transformProps(
     area,
     areaB,
     annotationLayers,
+    annotationAxisMarkers,
     colorScheme,
     timeShiftColor,
     contributionMode,
@@ -366,6 +370,17 @@ export default function transformProps(
     onlyTotal,
   });
 
+  const axisMarkers =
+    annotationAxisMarkers && xAxisType === AxisType.Time
+      ? getAnnotationPeriods(
+          [...rebasedDataA, ...rebasedDataB].map(row => row[xAxisLabel]),
+          extractTimegrain(chartProps.rawFormData as QueryFormData),
+          richTooltip,
+        )
+      : undefined;
+  const periodEventRows = axisMarkers?.eventsInTooltip
+    ? getPeriodEventRows(annotationLayers, annotationData, axisMarkers)
+    : undefined;
   annotationLayers
     .filter((layer: AnnotationLayer) => layer.show)
     .forEach((layer: AnnotationLayer) => {
@@ -400,6 +415,8 @@ export default function transformProps(
             colorScale,
             theme,
             sliceId,
+            undefined,
+            axisMarkers,
           ),
         );
       } else if (isTimeseriesAnnotationLayer(layer)) {
@@ -830,6 +847,10 @@ export default function transformProps(
               focusedRow = rows.length - 1;
             }
           });
+        // Event markers: the events of the hovered period follow its values.
+        if (periodEventRows) {
+          rows.push(...(periodEventRows.get(xValue) || []));
+        }
         return tooltipHtml(rows, tooltipFormatter(xValue), focusedRow);
       },
     },
