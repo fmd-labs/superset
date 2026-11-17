@@ -43,6 +43,8 @@ interface ResourceConfig {
   endpoint: string;
   kind: CommandPaletteItemKind;
   columns: string[];
+  /** Whether a search selects `columns` too (default) or takes the API's own. */
+  selectWhenSearching?: boolean;
   /** The column and operator of the list view's own search box. */
   searchColumn: string;
   searchOperator: string;
@@ -68,7 +70,10 @@ const RESOURCES: Record<CommandPaletteResource, ResourceConfig> = {
   charts: {
     endpoint: '/api/v1/chart/',
     kind: 'chart',
-    columns: ['id', 'slice_name', 'url'],
+    // The chart API fails (500) on a selection without the datasource columns.
+    columns: ['id', 'slice_name', 'url', 'datasource_id', 'datasource_type'],
+    // With its search filter, a selection returns wrong counts and rows.
+    selectWhenSearching: false,
     searchColumn: 'slice_name',
     searchOperator: 'chart_all_text',
     title: row => row.slice_name,
@@ -152,7 +157,9 @@ async function fetchResource(
     order_direction: 'desc',
     page: 0,
     page_size: search ? SEARCH_SIZE : PRELOAD_SIZE,
-    select_columns: config.columns,
+    ...((!search || config.selectWhenSearching !== false) && {
+      select_columns: config.columns,
+    }),
     ...(words.length && {
       filters: words.map(value => ({
         col: config.searchColumn,
