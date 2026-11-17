@@ -542,6 +542,7 @@ audit enforces both), so a workflow added by an upstream release cannot start ru
 | `6.1.0-fork.2` | `c83fb2b` (tag `6.1.0`) | `ghcr.io/fmd-labs/superset@sha256:b9b4858012f22affc5af6f72510180d215f84c209e9ea3419a35a321b8d46005` | D01–D09     | D08 and D09 (#4), of `f556fe8`; candidate `sha-f556fe8-run.42674289702`.           |
 | `6.1.0-fork.3` | `c83fb2b` (tag `6.1.0`) | `ghcr.io/fmd-labs/superset@sha256:2fab0fa1060dddad95c77c5a631dd8aa9ce9ad71979207bfce2bf83c305b200f` | D01–D10     | D10 (#6), of `585fadc`; candidate `sha-585fadc-run.43913032381`.                   |
 | `6.1.0-fork.4` | `c83fb2b` (tag `6.1.0`) | `ghcr.io/fmd-labs/superset@sha256:44866c610449ac8fbf8a102cc45936a13e4197bda261cca8d93d40f8e267833c` | D01–D10     | D10 muted event lines (#8), of `99e8ec7`; candidate `sha-99e8ec7-run.44052814998`. |
+| `6.1.0-fork.5` | `c83fb2b` (tag `6.1.0`) | `ghcr.io/fmd-labs/superset@sha256:caa89d0aafe1c8cba2255b9134487470f1f5ea5ef69ac4a02db195aa325b505c` | D01–D11     | D11 command palette (#10), of `304ceb9`; candidate `sha-304ceb9-run.44085326448`.  |
 
 Fork releases are tagged `<upstream version>-fork.<n>`, for example `6.1.0-fork.1`, like upstream's tags without a
 `v`. `<upstream version>` is the upstream tag named in **Base**, and `<n>` counts fork releases on that upstream
