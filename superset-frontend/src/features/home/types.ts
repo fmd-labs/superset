@@ -39,6 +39,8 @@ export interface ExtensionConfigs {
 export interface RightMenuProps {
   align: 'flex-start' | 'flex-end';
   settings: MenuObjectProps[];
+  /** The main navigation's entries, for the command palette. */
+  menu?: MenuObjectProps[];
   navbarRight: NavBarProps;
   isFrontendRoute: (path?: string) => boolean;
   environmentTag: {

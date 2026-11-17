@@ -22,6 +22,12 @@
         "description": "Enables experimental chart plugins"
       },
       {
+        "name": "COMMAND_PALETTE",
+        "default": false,
+        "lifecycle": "development",
+        "description": "Adds a search button and a keyboard shortcut (Cmd+K / Ctrl+K) to the navigation bar that open a command palette: jump to a page, a dashboard, a chart or a saved query by typing part of its name."
+      },
+      {
         "name": "CSV_UPLOAD_PYARROW_ENGINE",
         "default": false,
         "lifecycle": "development",

@@ -401,6 +401,7 @@ export function Menu({
           <RightMenu
             align={screens.md || isMobile ? 'flex-end' : 'flex-start'}
             settings={settings}
+            menu={menu}
             navbarRight={navbarRight}
             isFrontendRoute={isFrontendRoute}
             environmentTag={environmentTag}

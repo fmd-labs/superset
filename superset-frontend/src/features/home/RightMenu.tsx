@@ -60,6 +60,7 @@ import { uploadUserPerms } from 'src/views/CRUD/utils';
 import { useThemeContext } from 'src/theme/ThemeProvider';
 import { useIsMobile } from 'src/hooks/useIsMobile';
 import { useThemeMenuItems } from 'src/hooks/useThemeMenuItems';
+import CommandPaletteTrigger from 'src/features/commandPalette';
 import { useLanguageMenuItems } from './LanguagePicker';
 import {
   ExtensionConfigs,
@@ -106,6 +107,7 @@ const StyledMenuItem = styled.div<{ disabled?: boolean }>`
 const RightMenu = ({
   align,
   settings,
+  menu,
   navbarRight,
   isFrontendRoute,
   environmentTag,
@@ -686,6 +688,14 @@ const RightMenu = ({
             </Tag>
           );
         })()}
+      {isFeatureEnabled(FeatureFlag.CommandPalette) && (
+        <CommandPaletteTrigger
+          menu={menu}
+          settings={settings}
+          isFrontendRoute={isFrontendRoute}
+          isAnonymous={navbarRight.user_is_anonymous}
+        />
+      )}
       <Menu
         css={css`
           display: flex;

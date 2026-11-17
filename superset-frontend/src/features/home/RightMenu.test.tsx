@@ -476,3 +476,42 @@ test('hides logout button when embedded and flag is enabled', async () => {
   userEvent.hover(await screen.findByText(/Settings/i));
   expect(screen.queryByText('Logout')).not.toBeInTheDocument();
 });
+
+const renderWithState = () => {
+  const state = {
+    user: { roles: { Admin: [['can_read', 'Dashboard']] } },
+    dashboardInfo: {},
+    common: {
+      conf: {
+        CSV_EXTENSIONS: [],
+        EXCEL_EXTENSIONS: [],
+        COLUMNAR_EXTENSIONS: [],
+        ALLOWED_EXTENSIONS: [],
+      },
+    },
+  };
+  useSelectorMock.mockImplementation(selector => selector(state));
+  fetchMock.get('glob:*/api/v1/*', { result: [], count: 0 });
+  return render(<RightMenu {...createProps()} />, {
+    useRedux: true,
+    useRouter: true,
+    useQueryParams: true,
+    useTheme: true,
+  });
+};
+
+test('shows no search button without the command palette flag', async () => {
+  renderWithState();
+  expect(await screen.findByText('Settings')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Search' })).toBeNull();
+});
+
+test('shows the search button with the command palette flag', async () => {
+  mockIsFeatureEnabled.mockImplementation(
+    flag => flag === FeatureFlag.CommandPalette,
+  );
+  renderWithState();
+  expect(
+    await screen.findByRole('button', { name: 'Search' }),
+  ).toBeInTheDocument();
+});

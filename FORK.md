@@ -457,6 +457,40 @@ It skips HTML comments and fenced code blocks.
 - **Remove when:** upstream draws event annotations at their period with an axis marker, and supports annotations on
   big number trend lines.
 
+### D11 — Command palette in the navigation bar
+
+- **Since:** 2026-11-17
+- **Kind:** feature
+- **Upstream:** not proposed
+- **Files:**
+  - `superset/config.py`
+  - `docs/static/feature-flags.json`
+  - `superset-frontend/packages/superset-ui-core/src/utils/featureFlags.ts`
+  - `superset-frontend/src/features/commandPalette/`
+  - `superset-frontend/src/features/home/Menu.tsx`
+  - `superset-frontend/src/features/home/RightMenu.tsx`
+  - `superset-frontend/src/features/home/RightMenu.test.tsx`
+  - `superset-frontend/src/features/home/types.ts`
+- **What:** with the `COMMAND_PALETTE` feature flag on (off by default), the navigation bar has a search button, and
+  ⌘K on macOS (Ctrl+K elsewhere) opens the same search from anywhere in the app. With the flag off, nothing is added
+  and nothing is requested.
+  - **What it finds:** the pages of the navigation and of the Settings menu, the user's dashboards, charts and saved
+    queries, what the user opened last (the home page's recent activity), and the "+" menu's create actions. Without a
+    query it shows the recent items, the dashboards and the pages; a query also searches charts, saved queries and the
+    create actions. Each list is loaded only when the user may read it, and the create actions only when they may
+    write; mobile consumption mode (D08) leaves the create actions out.
+  - **How it searches:** every word of the query must be in the title (or in its context, such as the menu section or
+    the saved query's database), without regard to case and diacritics; a word at the start of the title ranks first,
+    then one at the start of a word. The 100 most recently changed entries of each list load once the page is idle
+    and again when the palette opens after a minute, so most searches take no request. A list with more entries is
+    also searched on the server as the user types (the list view's own search filter, 200 ms after the last key), and
+    what it returns is added to the list.
+  - **Keyboard:** ↑ and ↓ move, ↵ opens, ⌘↵ (Ctrl+↵) opens in a new tab, Esc closes; a click works as a link. Pages
+    of the single-page app open without a page load. A shortcut an editor handles first (it calls `preventDefault`)
+    stays the editor's.
+- **Why:** switching between dashboards takes the dashboard list or the home page and a search there each time.
+- **Remove when:** upstream ships a global search or command palette.
+
 ## Repository settings
 
 Settings that live in GitHub rather than in files:
