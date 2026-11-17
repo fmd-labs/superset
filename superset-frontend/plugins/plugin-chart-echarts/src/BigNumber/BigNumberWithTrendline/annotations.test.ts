@@ -144,9 +144,17 @@ test('event markers snap events to their day and leave room below the trend line
     theme: supersetTheme,
     annotationData,
   });
-  const { markLine } = series[0] as { markLine: MarkLine };
-  expect(markLine.symbol).toEqual(['circle', 'none']);
-  expect(markLine.data).toEqual([
+  expect(series.map(item => item.id)).toEqual([
+    'Event - Releases',
+    'Event markers - Releases',
+  ]);
+  const [line, markers] = series.map(
+    item => (item as { markLine: MarkLine }).markLine,
+  );
+  expect(line.symbol).toBe('none');
+  expect(line.label).toEqual({ show: false });
+  expect(markers.symbol).toEqual(['circle', 'none']);
+  expect(markers.data).toEqual([
     {
       name: 'Releases - Pricing\nReleases - <b>Cancel</b>',
       xAxis: utc('2026-11-10'),

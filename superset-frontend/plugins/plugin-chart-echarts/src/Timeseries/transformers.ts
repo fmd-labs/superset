@@ -641,11 +641,15 @@ export function transformEventAnnotation(
     ...(isHorizontal ? { yAxis: time } : { xAxis: time }),
   }));
 
+  const layerColor = color || colorScale(name, sliceId);
+  const lineOpacity = parseAnnotationOpacity(opacity);
   const lineStyle: LineStyleOption & DefaultStatesMixin['emphasis'] = {
     width,
     type: style as ZRLineType,
-    color: color || colorScale(name, sliceId),
-    opacity: parseAnnotationOpacity(opacity),
+    // With event markers, the marker carries the layer's color and the line
+    // takes a muted neutral color.
+    color: axisMarkers ? theme.colorTextQuaternary : layerColor,
+    opacity: lineOpacity,
     emphasis: {
       width: width ? width + 1 : width,
       opacity: 1,
@@ -683,12 +687,10 @@ export function transformEventAnnotation(
     animation: false,
     markLine: {
       silent: false,
-      // With event markers, the line starts with a marker on the time axis,
-      // and the tooltip of its period names the events instead of a label
-      // along the line on hover.
-      symbol: axisMarkers ? ['circle', 'none'] : 'none',
-      ...(axisMarkers && { symbolSize: ANNOTATION_AXIS_MARKER_SIZE }),
+      symbol: 'none',
       lineStyle,
+      // With event markers and a tooltip that names the events of a period,
+      // the line shows no label on hover.
       label:
         axisMarkers?.eventsInTooltip && !showLabel
           ? { show: false }
@@ -696,6 +698,25 @@ export function transformEventAnnotation(
       data: allEventData,
     },
   });
+
+  if (axisMarkers) {
+    // ECharts colors a mark line's symbols with the line's color, so the
+    // markers on the time axis are the start symbols of a second mark line
+    // in the layer's color whose line has no width and is not drawn.
+    series.push({
+      id: `Event markers - ${name}`,
+      type: 'line',
+      animation: false,
+      markLine: {
+        silent: true,
+        symbol: ['circle', 'none'],
+        symbolSize: ANNOTATION_AXIS_MARKER_SIZE,
+        lineStyle: { width: 0, color: layerColor, opacity: lineOpacity },
+        label: { show: false },
+        data: allEventData,
+      },
+    });
+  }
 
   return series;
 }
