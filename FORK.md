@@ -440,8 +440,9 @@ It skips HTML comments and fenced code blocks.
     last one are left out, which upstream drew outside the plot. When the tooltip is per period (**Rich tooltip**, the
     default), it lists the events of the hovered period (title and layer name, HTML-escaped) after its values, and the
     line shows no label on hover; otherwise the line keeps upstream's label on hover. An event layer's **Show label**
-    still writes the label along the line. The style, width, color and opacity of the layer apply to the line and its
-    marker. Only on a time x-axis.
+    still writes the label along the line. The marker takes the layer's color, and the line a muted neutral color
+    (the theme's quaternary text color), so the line does not compete with the data; the layer's style, width and
+    opacity apply to the line, and its opacity also to the marker. Only on a time x-axis.
   - **Big number with trend line:** the chart gains **Annotations and Layers** with event and interval layers,
     drawn on the trend line as on a time-series chart (events as lines, intervals as shaded areas), and the event
     markers above. The trend line is too small for a label along a line, so its events never show one; its tooltip

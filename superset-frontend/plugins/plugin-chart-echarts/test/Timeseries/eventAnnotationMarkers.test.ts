@@ -73,6 +73,7 @@ const weeks = [utc('2026-10-26'), utc('2026-11-02'), utc('2026-11-09')];
 
 type MarkLine = {
   label: unknown;
+  lineStyle: { color?: string; width?: number };
   symbol: string | string[];
   symbolSize: number;
   data: { name: string; xAxis?: number | string; yAxis?: number | string }[];
@@ -89,8 +90,12 @@ test('event annotations keep their exact time and no marker by default', () => {
     CategoricalColorNamespace.getScale(),
     supersetTheme,
   );
+  expect(series).toHaveLength(1);
   const markLine = markLineOf(series);
   expect(markLine.symbol).toBe('none');
+  expect(markLine.lineStyle.color).toBe(
+    CategoricalColorNamespace.getScale()('Releases'),
+  );
   expect(markLine.data).toEqual([
     { name: 'Releases - Launch', xAxis: utc('2026-11-04') },
   ]);
@@ -110,15 +115,29 @@ test('event markers put each event at its period, with a marker on the time axis
     undefined,
     { points: weeks, timeGrain: 'P1W', eventsInTooltip: true },
   );
-  const markLine = markLineOf(series);
-  expect(markLine.symbol).toEqual(['circle', 'none']);
-  expect(markLine.symbolSize).toBeGreaterThan(0);
-  // The tooltip names the events, so the line shows no label on hover.
-  expect(markLine.label).toEqual({ show: false });
-  expect(markLine.data).toEqual([
+  expect(series.map(item => item.id)).toEqual([
+    'Event - Releases',
+    'Event markers - Releases',
+  ]);
+  const [line, markers] = series.map(item => markLineOf([item]));
+  const data = [
     { name: 'Releases - Launch', xAxis: utc('2026-11-02') },
     { name: 'Releases - Pricing', xAxis: utc('2026-11-09') },
-  ]);
+  ];
+  // The line is muted and neutral, and shows no label on hover, as the
+  // tooltip names the events.
+  expect(line.symbol).toBe('none');
+  expect(line.lineStyle.color).toBe(supersetTheme.colorTextQuaternary);
+  expect(line.label).toEqual({ show: false });
+  expect(line.data).toEqual(data);
+  // The markers carry the layer's color, on a line that is not drawn.
+  expect(markers.symbol).toEqual(['circle', 'none']);
+  expect(markers.symbolSize).toBeGreaterThan(0);
+  expect(markers.lineStyle.width).toBe(0);
+  expect(markers.lineStyle.color).toBe(
+    CategoricalColorNamespace.getScale()('Releases'),
+  );
+  expect(markers.data).toEqual(data);
 });
 
 test('event markers group the events of one period and leave out the others', () => {
@@ -195,15 +214,18 @@ const chartProps = (formData: Partial<EchartsTimeseriesFormData>) =>
     ],
   });
 
-const eventMarkLine = (props: EchartsTimeseriesChartProps) => {
+const LINE = 'Event - Releases';
+const MARKERS = 'Event markers - Releases';
+
+const eventMarkLine = (props: EchartsTimeseriesChartProps, id = LINE) => {
   const series = transformProps(props).echartOptions.series as SeriesOption[];
-  return markLineOf(
-    series.filter(item => item.id === 'Event - Releases'),
-  ) as MarkLine;
+  return markLineOf(series.filter(item => item.id === id)) as MarkLine;
 };
 
 test('time-series charts draw event markers when annotation_axis_markers is on', () => {
-  const markLine = eventMarkLine(chartProps({ annotationAxisMarkers: true }));
+  const props = chartProps({ annotationAxisMarkers: true });
+  expect(eventMarkLine(props).symbol).toBe('none');
+  const markLine = eventMarkLine(props, MARKERS);
   expect(markLine.symbol).toEqual(['circle', 'none']);
   expect(markLine.data).toEqual([
     { name: 'Releases - Pricing', xAxis: utc('2026-11-09') },
@@ -231,7 +253,10 @@ test('the tooltip of a period names its events when annotation_axis_markers is o
 });
 
 test('time-series charts keep upstream event lines when annotation_axis_markers is off', () => {
-  const markLine = eventMarkLine(chartProps({}));
+  const props = chartProps({});
+  const series = transformProps(props).echartOptions.series as SeriesOption[];
+  expect(series.map(item => item.id)).not.toContain(MARKERS);
+  const markLine = eventMarkLine(props);
   expect(markLine.symbol).toBe('none');
   expect(markLine).not.toHaveProperty('symbolSize');
   expect(markLine.label).toMatchObject({
@@ -244,11 +269,14 @@ test('time-series charts keep upstream event lines when annotation_axis_markers 
 });
 
 test('without a rich tooltip, event markers keep the label on hover', () => {
-  const markLine = eventMarkLine(
-    chartProps({ annotationAxisMarkers: true, richTooltip: false }),
-  );
-  expect(markLine.symbol).toEqual(['circle', 'none']);
-  expect(markLine.label).toMatchObject({ emphasis: { show: true } });
+  const props = chartProps({
+    annotationAxisMarkers: true,
+    richTooltip: false,
+  });
+  expect(eventMarkLine(props, MARKERS).symbol).toEqual(['circle', 'none']);
+  expect(eventMarkLine(props).label).toMatchObject({
+    emphasis: { show: true },
+  });
 });
 
 test('event markers snap on the time axis of a horizontal chart', () => {
@@ -303,9 +331,7 @@ test('mixed time-series charts draw event markers when annotation_axis_markers i
     series: SeriesOption[];
     tooltip: { formatter: (params: unknown) => string };
   };
-  const markLine = markLineOf(
-    series.filter(item => item.id === 'Event - Releases'),
-  );
+  const markLine = markLineOf(series.filter(item => item.id === MARKERS));
   expect(markLine.symbol).toEqual(['circle', 'none']);
   expect(markLine.data).toEqual([
     { name: 'Releases - Pricing', xAxis: utc('2026-11-09') },
