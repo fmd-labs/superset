@@ -455,3 +455,35 @@ test('a list that failed to load is searched on the server', async () => {
     await screen.findByRole('option', { name: /Outbound/ }),
   ).toBeInTheDocument();
 });
+
+test('charts load with the datasource columns and are searched without a selection', async () => {
+  mockApi();
+  fetchMock.removeRoutes();
+  fetchMock.get(RECENT, { result: [] });
+  fetchMock.get(DASHBOARDS, { count: 0, result: [] });
+  fetchMock.get(SAVED_QUERIES, { count: 0, result: [] });
+  fetchMock.get(CHARTS, {
+    count: 600,
+    result: [
+      { id: 9, slice_name: 'Onboarding Funnel', url: '/explore/?slice_id=9' },
+    ],
+  });
+  setup();
+  const input = await openWithButton();
+  await waitFor(() =>
+    expect(fetchMock.callHistory.calls(CHARTS)).toHaveLength(1),
+  );
+  expect(
+    queryOf(fetchMock.callHistory.calls(CHARTS)[0].url).select_columns,
+  ).toEqual(['id', 'slice_name', 'url', 'datasource_id', 'datasource_type']);
+
+  await userEvent.type(input, 'payout');
+  await waitFor(() =>
+    expect(fetchMock.callHistory.calls(CHARTS)).toHaveLength(2),
+  );
+  const search = queryOf(fetchMock.callHistory.calls(CHARTS)[1].url);
+  expect(search.select_columns).toBeUndefined();
+  expect(search.filters).toEqual([
+    { col: 'slice_name', opr: 'chart_all_text', value: 'payout' },
+  ]);
+});
