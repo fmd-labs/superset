@@ -552,6 +552,11 @@ DEFAULT_FEATURE_FLAGS: dict[str, bool] = {
     # Enables experimental chart plugins
     # @lifecycle: development
     "CHART_PLUGINS_EXPERIMENTAL": False,
+    # Adds a search button and a keyboard shortcut (Cmd+K / Ctrl+K) to the
+    # navigation bar that open a command palette: jump to a page, a dashboard,
+    # a chart or a saved query by typing part of its name.
+    # @lifecycle: development
+    "COMMAND_PALETTE": False,
     # Experimental PyArrow engine for CSV parsing (may have issues with dates/nulls)
     # @lifecycle: development
     "CSV_UPLOAD_PYARROW_ENGINE": False,
